@@ -33,10 +33,8 @@ func (h *MD5Hasher) Hash(plaintext string) (string, error) {
 // Verify checks if the plaintext matches the given hash.
 // Comparison is case-insensitive for hex strings.
 func (h *MD5Hasher) Verify(hash, plaintext string) bool {
-	expected, err := h.Hash(plaintext)
-	if err != nil {
-		return false
-	}
+	// MD5 Hash() never returns an error, so we can safely ignore it
+	expected, _ := h.Hash(plaintext)
 	return strings.EqualFold(hash, expected)
 }
 

@@ -1,11 +1,11 @@
 package secure
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -107,7 +107,7 @@ func NewArgon2Hasher(opts ...Argon2Option) *Argon2Hasher {
 // This format is compatible with Herald's existing implementation.
 func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := rand.Read(salt); err != nil {
+	if _, err := io.ReadFull(randReader, salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 // This format is compatible with other Argon2 implementations (PHC format).
 func (h *Argon2Hasher) HashWithParams(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := rand.Read(salt); err != nil {
+	if _, err := io.ReadFull(randReader, salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 

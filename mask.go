@@ -159,13 +159,11 @@ func MaskIPAddress(ip string) string {
 		return ""
 	}
 
-	// Check if it's IPv6
+	// Check if it's IPv6 (contains ":")
+	// Note: strings.Split on ":" always returns at least 2 elements if ":" exists
 	if strings.Contains(ip, ":") {
 		parts := strings.Split(ip, ":")
-		if len(parts) > 1 {
-			return parts[0] + ":****:****:****:****:****:****:****"
-		}
-		return "****"
+		return parts[0] + ":****:****:****:****:****:****:****"
 	}
 
 	// IPv4

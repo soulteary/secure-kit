@@ -5,8 +5,23 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math/big"
 )
+
+// randReader is the random source used by all random functions.
+// It defaults to crypto/rand.Reader but can be replaced for testing.
+var randReader io.Reader = rand.Reader
+
+// SetRandReader sets the random reader (for testing purposes only).
+// Pass nil to reset to the default crypto/rand.Reader.
+func SetRandReader(r io.Reader) {
+	if r == nil {
+		randReader = rand.Reader
+	} else {
+		randReader = r
+	}
+}
 
 // RandomBytes generates cryptographically secure random bytes.
 // Uses crypto/rand which is suitable for security-sensitive applications.
@@ -16,7 +31,7 @@ func RandomBytes(n int) ([]byte, error) {
 	}
 
 	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(randReader, b); err != nil {
 		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 	return b, nil
@@ -76,7 +91,7 @@ func RandomString(length int, charset string) (string, error) {
 	charsetLen := big.NewInt(int64(len(charset)))
 
 	for i := 0; i < length; i++ {
-		idx, err := rand.Int(rand.Reader, charsetLen)
+		idx, err := rand.Int(randReader, charsetLen)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate random index: %w", err)
 		}
@@ -151,7 +166,7 @@ func RandomInt(max int64) (int64, error) {
 		return 0, fmt.Errorf("max must be positive: %d", max)
 	}
 
-	n, err := rand.Int(rand.Reader, big.NewInt(max))
+	n, err := rand.Int(randReader, big.NewInt(max))
 	if err != nil {
 		return 0, fmt.Errorf("failed to generate random int: %w", err)
 	}

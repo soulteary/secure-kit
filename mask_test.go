@@ -293,6 +293,31 @@ func TestMaskIPAddress(t *testing.T) {
 			input:    "127.0.0.1",
 			expected: "127.*.*.*",
 		},
+		{
+			name:     "invalid IPv4 - too few segments",
+			input:    "192.168.1",
+			expected: "****",
+		},
+		{
+			name:     "invalid IPv4 - too many segments",
+			input:    "192.168.1.100.200",
+			expected: "****",
+		},
+		{
+			name:     "single segment with no dots or colons",
+			input:    "localhost",
+			expected: "****",
+		},
+		{
+			name:     "IPv6 with single colon only",
+			input:    "2001",
+			expected: "****",
+		},
+		{
+			name:     "IPv6 short form",
+			input:    "::1",
+			expected: ":****:****:****:****:****:****:****",
+		},
 	}
 
 	for _, tt := range tests {

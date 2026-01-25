@@ -1,12 +1,20 @@
 package secure
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// argon2ErrorReader is a mock reader that always returns an error.
+type argon2ErrorReader struct{}
+
+func (e *argon2ErrorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("mock random source error")
+}
 
 func TestArgon2Hasher_Hash(t *testing.T) {
 	h := NewArgon2Hasher()
@@ -88,6 +96,22 @@ func TestArgon2Hasher_Verify(t *testing.T) {
 		assert.False(t, h.Verify("invalid", "password"))
 		assert.False(t, h.Verify("", "password"))
 		assert.False(t, h.Verify("no:colon:here:extra", "password"))
+	})
+
+	t.Run("invalid base64 salt in simple format", func(t *testing.T) {
+		// Invalid base64 in salt part
+		assert.False(t, h.Verify("!!!invalid-base64!!!:validhash", "password"))
+	})
+
+	t.Run("invalid base64 hash in simple format", func(t *testing.T) {
+		// Valid base64 salt but invalid base64 hash
+		assert.False(t, h.Verify("dGVzdHNhbHQ=:!!!invalid-base64!!!", "password"))
+	})
+
+	t.Run("invalid PHC format verification", func(t *testing.T) {
+		// Invalid PHC format should return false
+		assert.False(t, h.Verify("$argon2id$v=19$invalid", "password"))
+		assert.False(t, h.Verify("$argon2id$v=19$m=abc,t=1,p=4$salt$hash", "password"))
 	})
 
 	t.Run("empty password verification", func(t *testing.T) {
@@ -191,6 +215,56 @@ func TestParseArgon2PHC(t *testing.T) {
 		_, _, _, err := parseArgon2PHC("$argon2id$v=19$invalid$salt$hash")
 		assert.Error(t, err)
 	})
+
+	t.Run("invalid parameter format - missing equals", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m65536,t1,p4$salt$hash")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid parameter value - not a number", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=abc,t=1,p=4$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid salt encoding", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$!!!invalid-base64!!!$aGFzaA")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid hash encoding", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$!!!invalid-base64!!!")
+		assert.Error(t, err)
+	})
+
+	t.Run("too few parts", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$salt")
+		assert.Error(t, err)
+	})
+
+	t.Run("too many parts", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$salt$hash$extra")
+		assert.Error(t, err)
+	})
+}
+
+func TestArgon2Hash_WithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&argon2ErrorReader{})
+
+	h := NewArgon2Hasher()
+	_, err := h.Hash("password")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to generate salt")
+}
+
+func TestArgon2HashWithParams_WithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&argon2ErrorReader{})
+
+	h := NewArgon2Hasher()
+	_, err := h.HashWithParams("password")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to generate salt")
 }
 
 func BenchmarkArgon2Hash(b *testing.B) {

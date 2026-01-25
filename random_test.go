@@ -1,6 +1,7 @@
 package secure
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -8,6 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// errorReader is a mock reader that always returns an error.
+type errorReader struct{}
+
+func (e *errorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("mock random source error")
+}
 
 func TestRandomBytes(t *testing.T) {
 	t.Run("generates correct length", func(t *testing.T) {
@@ -76,6 +84,14 @@ func TestRandomHex(t *testing.T) {
 
 		assert.NotEqual(t, hex1, hex2)
 	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomHex(0)
+		assert.Error(t, err)
+
+		_, err = RandomHex(-1)
+		assert.Error(t, err)
+	})
 }
 
 func TestRandomBase64(t *testing.T) {
@@ -94,6 +110,14 @@ func TestRandomBase64(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, matched)
 	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomBase64(0)
+		assert.Error(t, err)
+
+		_, err = RandomBase64(-1)
+		assert.Error(t, err)
+	})
 }
 
 func TestRandomBase64URL(t *testing.T) {
@@ -111,6 +135,14 @@ func TestRandomBase64URL(t *testing.T) {
 		assert.NotContains(t, b64, "+")
 		assert.NotContains(t, b64, "/")
 		assert.NotContains(t, b64, "=")
+	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomBase64URL(0)
+		assert.Error(t, err)
+
+		_, err = RandomBase64URL(-1)
+		assert.Error(t, err)
 	})
 }
 
@@ -175,6 +207,14 @@ func TestRandomDigits(t *testing.T) {
 		// Should have many unique codes
 		assert.Greater(t, len(codes), 90)
 	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomDigits(0)
+		assert.Error(t, err)
+
+		_, err = RandomDigits(-1)
+		assert.Error(t, err)
+	})
 }
 
 func TestRandomAlphanumeric(t *testing.T) {
@@ -186,6 +226,14 @@ func TestRandomAlphanumeric(t *testing.T) {
 		matched, err := regexp.MatchString("^[A-Za-z0-9]+$", s)
 		require.NoError(t, err)
 		assert.True(t, matched)
+	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomAlphanumeric(0)
+		assert.Error(t, err)
+
+		_, err = RandomAlphanumeric(-1)
+		assert.Error(t, err)
 	})
 }
 
@@ -203,6 +251,14 @@ func TestRandomToken(t *testing.T) {
 		assert.NotContains(t, token, "+")
 		assert.NotContains(t, token, "/")
 		assert.NotContains(t, token, "=")
+	})
+
+	t.Run("invalid length", func(t *testing.T) {
+		_, err := RandomToken(0)
+		assert.Error(t, err)
+
+		_, err = RandomToken(-1)
+		assert.Error(t, err)
 	})
 }
 
@@ -284,6 +340,118 @@ func TestMustRandomBytes(t *testing.T) {
 	// Deprecated function, should still work
 	b := MustRandomBytes(16)
 	assert.Len(t, b, 16)
+}
+
+func TestSetRandReader(t *testing.T) {
+	t.Run("set nil resets to default", func(t *testing.T) {
+		SetRandReader(nil)
+		// Should work with default reader
+		b, err := RandomBytes(16)
+		require.NoError(t, err)
+		assert.Len(t, b, 16)
+	})
+
+	t.Run("set custom reader", func(t *testing.T) {
+		// Save and restore
+		defer SetRandReader(nil)
+
+		SetRandReader(&errorReader{})
+
+		_, err := RandomBytes(16)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mock random source error")
+	})
+}
+
+func TestRandomBytesWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomBytes(16)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to generate random bytes")
+}
+
+func TestRandomHexWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomHex(16)
+	assert.Error(t, err)
+}
+
+func TestRandomBase64WithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomBase64(16)
+	assert.Error(t, err)
+}
+
+func TestRandomBase64URLWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomBase64URL(16)
+	assert.Error(t, err)
+}
+
+func TestRandomStringWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomString(10, CharsetAlphanumeric)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to generate random index")
+}
+
+func TestRandomUUIDWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomUUID()
+	assert.Error(t, err)
+}
+
+func TestRandomIntWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomInt(100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to generate random int")
+}
+
+func TestRandomIntRangeWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomIntRange(10, 20)
+	assert.Error(t, err)
+}
+
+func TestRandomDigitsWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomDigits(6)
+	assert.Error(t, err)
+}
+
+func TestRandomAlphanumericWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomAlphanumeric(10)
+	assert.Error(t, err)
+}
+
+func TestRandomTokenWithFailingReader(t *testing.T) {
+	defer SetRandReader(nil)
+	SetRandReader(&errorReader{})
+
+	_, err := RandomToken(32)
+	assert.Error(t, err)
 }
 
 func BenchmarkRandomBytes(b *testing.B) {
