@@ -168,13 +168,29 @@ func (h *Argon2Hasher) verifySimple(hash, plaintext string) bool {
 		return false
 	}
 
+	if base64.URLEncoding.DecodedLen(len(parts[0])) > maxArgon2SaltLen {
+		return false
+	}
+	if base64.URLEncoding.DecodedLen(len(parts[1])) > maxArgon2HashLen {
+		return false
+	}
+
 	salt, err := base64.URLEncoding.DecodeString(parts[0])
 	if err != nil {
+		return false
+	}
+	if len(salt) == 0 || len(salt) > maxArgon2SaltLen {
 		return false
 	}
 
 	expectedHash, err := base64.URLEncoding.DecodeString(parts[1])
 	if err != nil {
+		return false
+	}
+	if len(expectedHash) == 0 || len(expectedHash) > maxArgon2HashLen {
+		return false
+	}
+	if len(expectedHash) != int(h.keyLen) {
 		return false
 	}
 
