@@ -18,6 +18,8 @@ const (
 	maxArgon2MemoryKB = 512 * 1024 // 512 MB
 	maxArgon2Time     = 16
 	maxArgon2Threads  = 255
+	maxArgon2SaltLen  = 1024
+	maxArgon2HashLen  = 1024
 )
 
 // Default Argon2 parameters
@@ -49,7 +51,7 @@ type Argon2Option func(*Argon2Hasher)
 // Higher values increase security but also computation time.
 func WithArgon2Time(t uint32) Argon2Option {
 	return func(h *Argon2Hasher) {
-		if t > 0 {
+		if t > 0 && t <= maxArgon2Time {
 			h.time = t
 		}
 	}
@@ -59,7 +61,7 @@ func WithArgon2Time(t uint32) Argon2Option {
 // Higher values increase memory-hardness and security.
 func WithArgon2Memory(m uint32) Argon2Option {
 	return func(h *Argon2Hasher) {
-		if m > 0 {
+		if m > 0 && m <= maxArgon2MemoryKB {
 			h.memory = m
 		}
 	}
@@ -69,7 +71,7 @@ func WithArgon2Memory(m uint32) Argon2Option {
 // Should not exceed the number of available CPU cores.
 func WithArgon2Threads(t uint8) Argon2Option {
 	return func(h *Argon2Hasher) {
-		if t > 0 {
+		if t > 0 && t <= maxArgon2Threads {
 			h.threads = t
 		}
 	}
@@ -78,7 +80,7 @@ func WithArgon2Threads(t uint8) Argon2Option {
 // WithArgon2KeyLen sets the output key length in bytes.
 func WithArgon2KeyLen(l uint32) Argon2Option {
 	return func(h *Argon2Hasher) {
-		if l > 0 {
+		if l > 0 && l <= maxArgon2HashLen {
 			h.keyLen = l
 		}
 	}
@@ -87,7 +89,7 @@ func WithArgon2KeyLen(l uint32) Argon2Option {
 // WithArgon2SaltLen sets the salt length in bytes.
 func WithArgon2SaltLen(l int) Argon2Option {
 	return func(h *Argon2Hasher) {
-		if l > 0 {
+		if l > 0 && l <= maxArgon2SaltLen {
 			h.saltLen = l
 		}
 	}
@@ -115,7 +117,7 @@ func NewArgon2Hasher(opts ...Argon2Option) *Argon2Hasher {
 // This format is compatible with Herald's existing implementation.
 func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := io.ReadFull(randReader, salt); err != nil {
+	if _, err := io.ReadFull(getRandReader(), salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
@@ -130,7 +132,7 @@ func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 // This format is compatible with other Argon2 implementations (PHC format).
 func (h *Argon2Hasher) HashWithParams(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := io.ReadFull(randReader, salt); err != nil {
+	if _, err := io.ReadFull(getRandReader(), salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
@@ -181,7 +183,15 @@ func (h *Argon2Hasher) verifySimple(hash, plaintext string) bool {
 }
 
 // verifyPHC verifies a hash in PHC format ($argon2id$v=19$m=65536,t=1,p=4$salt$hash).
-func (h *Argon2Hasher) verifyPHC(hash, plaintext string) bool {
+func (h *Argon2Hasher) verifyPHC(hash, plaintext string) (ok bool) {
+	// Protect callers from malformed PHC strings that would otherwise panic
+	// inside x/crypto/argon2 parameter validation.
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+
 	params, salt, expectedHash, err := parseArgon2PHC(hash)
 	if err != nil {
 		return false
@@ -219,6 +229,9 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 	if parts[1] != "argon2id" {
 		return nil, nil, nil, errors.New("unsupported argon2 variant")
 	}
+	if parts[2] != fmt.Sprintf("v=%d", argon2.Version) {
+		return nil, nil, nil, errors.New("unsupported argon2 version")
+	}
 
 	// Parse parameters
 	paramParts := strings.Split(parts[3], ",")
@@ -227,6 +240,7 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 	}
 
 	params := &argon2Params{}
+	var hasMemory, hasTime, hasThreads bool
 
 	for _, p := range paramParts {
 		kv := strings.Split(p, "=")
@@ -242,11 +256,26 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 		switch kv[0] {
 		case "m":
 			params.memory = uint32(val)
+			hasMemory = true
 		case "t":
 			params.time = uint32(val)
+			hasTime = true
 		case "p":
 			params.threads = uint8(val)
+			hasThreads = true
+		default:
+			return nil, nil, nil, errors.New("unknown argon2 parameter")
 		}
+	}
+	if !hasMemory || !hasTime || !hasThreads {
+		return nil, nil, nil, errors.New("missing required argon2 parameters")
+	}
+	if params.memory == 0 || params.time == 0 || params.threads == 0 {
+		return nil, nil, nil, errors.New("argon2 parameters must be positive")
+	}
+	// x/crypto/argon2 requires memory >= 8 * threads.
+	if params.memory < 8*uint32(params.threads) {
+		return nil, nil, nil, errors.New("argon2 memory too small for parallelism")
 	}
 
 	if params.memory > maxArgon2MemoryKB {
@@ -263,10 +292,16 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("invalid salt encoding: %w", err)
 	}
+	if len(salt) == 0 || len(salt) > maxArgon2SaltLen {
+		return nil, nil, nil, errors.New("argon2 salt length out of bounds")
+	}
 
 	hashBytes, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("invalid hash encoding: %w", err)
+	}
+	if len(hashBytes) == 0 || len(hashBytes) > maxArgon2HashLen {
+		return nil, nil, nil, errors.New("argon2 hash length out of bounds")
 	}
 
 	return params, salt, hashBytes, nil

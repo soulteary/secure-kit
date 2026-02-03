@@ -123,6 +123,13 @@ func TestArgon2Hasher_Verify(t *testing.T) {
 		assert.False(t, h.Verify(maliciousT, "password"))
 	})
 
+	t.Run("PHC with invalid low parameters does not panic", func(t *testing.T) {
+		malicious := "$argon2id$v=19$m=65536,t=0,p=1$MTIzNDU2Nzg5MDEyMzQ1Ng$YWJjZA"
+		assert.NotPanics(t, func() {
+			assert.False(t, h.Verify(malicious, "password"))
+		})
+	})
+
 	t.Run("empty password verification", func(t *testing.T) {
 		hash, err := h.Hash("")
 		require.NoError(t, err)
@@ -181,6 +188,18 @@ func TestArgon2Hasher_CustomParameters(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, h.Verify(hash, "password"))
 	})
+
+	t.Run("out-of-range parameters are ignored", func(t *testing.T) {
+		h := NewArgon2Hasher(
+			WithArgon2Time(maxArgon2Time+1),
+			WithArgon2Memory(maxArgon2MemoryKB+1),
+			WithArgon2KeyLen(maxArgon2HashLen+1),
+			WithArgon2SaltLen(maxArgon2SaltLen+1),
+		)
+		hash, err := h.Hash("password")
+		require.NoError(t, err)
+		assert.True(t, h.Verify(hash, "password"))
+	})
 }
 
 func TestArgon2Hasher_Check(t *testing.T) {
@@ -220,6 +239,11 @@ func TestParseArgon2PHC(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("wrong version", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=18$m=65536,t=1,p=4$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+	})
+
 	t.Run("invalid parameters", func(t *testing.T) {
 		_, _, _, err := parseArgon2PHC("$argon2id$v=19$invalid$salt$hash")
 		assert.Error(t, err)
@@ -227,6 +251,25 @@ func TestParseArgon2PHC(t *testing.T) {
 
 	t.Run("invalid parameter format - missing equals", func(t *testing.T) {
 		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m65536,t1,p4$salt$hash")
+		assert.Error(t, err)
+	})
+
+	t.Run("missing required parameter", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown parameter", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4,x=1$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid low parameter values", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=0,p=1$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+		_, _, _, err = parseArgon2PHC("$argon2id$v=19$m=4,t=1,p=1$c2FsdA$aGFzaA")
+		assert.Error(t, err)
+		_, _, _, err = parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=0$c2FsdA$aGFzaA")
 		assert.Error(t, err)
 	})
 
@@ -242,6 +285,11 @@ func TestParseArgon2PHC(t *testing.T) {
 
 	t.Run("invalid hash encoding", func(t *testing.T) {
 		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$!!!invalid-base64!!!")
+		assert.Error(t, err)
+	})
+
+	t.Run("empty decoded salt/hash rejected", func(t *testing.T) {
+		_, _, _, err := parseArgon2PHC("$argon2id$v=19$m=65536,t=1,p=4$$")
 		assert.Error(t, err)
 	})
 

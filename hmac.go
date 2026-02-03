@@ -49,6 +49,15 @@ type HMACVerifier struct {
 	secret    []byte
 }
 
+func isValidHMACAlgorithm(a HMACAlgorithm) bool {
+	switch a {
+	case HMACSHA1, HMACSHA256, HMACSHA512:
+		return true
+	default:
+		return false
+	}
+}
+
 // NewHMACVerifier creates a new HMAC verifier with the specified algorithm and secret.
 func NewHMACVerifier(algorithm HMACAlgorithm, secret string) *HMACVerifier {
 	return &HMACVerifier{
@@ -83,6 +92,9 @@ func (v *HMACVerifier) hashFunc() func() hash.Hash {
 // Sign computes the HMAC signature for the given payload.
 // Returns the signature as a lowercase hex string.
 func (v *HMACVerifier) Sign(payload []byte) string {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return ""
+	}
 	mac := hmac.New(v.hashFunc(), v.secret)
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
@@ -91,12 +103,18 @@ func (v *HMACVerifier) Sign(payload []byte) string {
 // SignWithPrefix computes the HMAC signature and returns it with the algorithm prefix.
 // Example: "sha256=abc123..."
 func (v *HMACVerifier) SignWithPrefix(payload []byte) string {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return ""
+	}
 	return v.algorithm.Prefix() + v.Sign(payload)
 }
 
 // SignBase64 computes the HMAC signature and returns it as base64.
 // This is used by some providers like MS Teams.
 func (v *HMACVerifier) SignBase64(payload []byte) string {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return ""
+	}
 	mac := hmac.New(v.hashFunc(), v.secret)
 	mac.Write(payload)
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
@@ -106,6 +124,9 @@ func (v *HMACVerifier) SignBase64(payload []byte) string {
 // The signature can be with or without the algorithm prefix (e.g., "sha256=...").
 // Uses constant-time comparison to prevent timing attacks.
 func (v *HMACVerifier) Verify(payload []byte, signature string) bool {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return false
+	}
 	// Remove algorithm prefix if present
 	sig := strings.TrimPrefix(signature, v.algorithm.Prefix())
 
@@ -117,6 +138,9 @@ func (v *HMACVerifier) Verify(payload []byte, signature string) bool {
 // This is useful for webhooks that may send multiple signatures.
 // Uses constant-time comparison to prevent timing attacks.
 func (v *HMACVerifier) VerifyAny(payload []byte, signatures []string) (bool, string) {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return false, ""
+	}
 	expected := v.Sign(payload)
 
 	for _, sig := range signatures {
@@ -133,6 +157,9 @@ func (v *HMACVerifier) VerifyAny(payload []byte, signatures []string) (bool, str
 // VerifyBase64 checks if the provided base64-encoded signature matches.
 // This is used by some providers like MS Teams.
 func (v *HMACVerifier) VerifyBase64(payload []byte, signature string) bool {
+	if !isValidHMACAlgorithm(v.algorithm) {
+		return false
+	}
 	expected := v.SignBase64(payload)
 	return ConstantTimeEqual(expected, signature)
 }

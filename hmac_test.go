@@ -87,6 +87,13 @@ func TestHMACVerifier_Sign(t *testing.T) {
 			payload:   []byte(``),
 			expected:  "f9e66e179b6747ae54108f82f8ade8b3c25d76fd30afde6c395822c530196169",
 		},
+		{
+			name:      "Invalid algorithm returns empty signature",
+			algorithm: HMACAlgorithm(999),
+			secret:    "secret",
+			payload:   []byte(`{"a": "z"}`),
+			expected:  "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,6 +194,14 @@ func TestHMACVerifier_Verify(t *testing.T) {
 			signature: "b17e04cbb22afa8ffbff8796fc1894ed27badd9e",
 			expected:  false,
 		},
+		{
+			name:      "Invalid algorithm fails closed",
+			algorithm: HMACAlgorithm(999),
+			secret:    "secret",
+			payload:   []byte(`{"a": "z"}`),
+			signature: "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89",
+			expected:  false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -243,6 +258,31 @@ func TestHMACVerifier_VerifyAny(t *testing.T) {
 				t.Errorf("HMACVerifier.VerifyAny() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestHMACVerifier_InvalidAlgorithm(t *testing.T) {
+	v := NewHMACVerifier(HMACAlgorithm(999), "secret")
+	payload := []byte(`{"a":"z"}`)
+
+	if got := v.Sign(payload); got != "" {
+		t.Errorf("Sign() with invalid algorithm should return empty, got %q", got)
+	}
+	if got := v.SignWithPrefix(payload); got != "" {
+		t.Errorf("SignWithPrefix() with invalid algorithm should return empty, got %q", got)
+	}
+	if got := v.SignBase64(payload); got != "" {
+		t.Errorf("SignBase64() with invalid algorithm should return empty, got %q", got)
+	}
+	if v.Verify(payload, "anything") {
+		t.Error("Verify() with invalid algorithm should return false")
+	}
+	ok, expected := v.VerifyAny(payload, []string{"a", "b"})
+	if ok || expected != "" {
+		t.Errorf("VerifyAny() with invalid algorithm should fail closed, got ok=%v expected=%q", ok, expected)
+	}
+	if v.VerifyBase64(payload, "anything") {
+		t.Error("VerifyBase64() with invalid algorithm should return false")
 	}
 }
 

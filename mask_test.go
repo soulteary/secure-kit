@@ -432,6 +432,12 @@ func TestTruncateString(t *testing.T) {
 			maxLen:   10,
 			expected: "this is a ...",
 		},
+		{
+			name:     "negative maxLen",
+			input:    "this is a long string",
+			maxLen:   -1,
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {

@@ -217,6 +217,9 @@ func MaskName(name string) string {
 // TruncateString truncates a string to the specified length.
 // Adds "..." suffix if truncated.
 func TruncateString(s string, maxLen int) string {
+	if maxLen < 0 {
+		return ""
+	}
 	if len(s) <= maxLen {
 		return s
 	}

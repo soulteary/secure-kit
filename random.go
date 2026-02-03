@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"sync"
 )
 
 // MaxRandomBytes is the maximum number of bytes that RandomBytes will generate in one call.
@@ -16,10 +17,20 @@ const MaxRandomBytes = 1 << 20 // 1 MiB
 // randReader is the random source used by all random functions.
 // It defaults to crypto/rand.Reader. Only replace via SetRandReader in tests, and restore with SetRandReader(nil).
 var randReader io.Reader = rand.Reader
+var randReaderMu sync.RWMutex
+
+func getRandReader() io.Reader {
+	randReaderMu.RLock()
+	r := randReader
+	randReaderMu.RUnlock()
+	return r
+}
 
 // SetRandReader sets the random reader for testing only. Do not use in production.
 // Callers must call SetRandReader(nil) when the test ends to restore crypto/rand.Reader.
 func SetRandReader(r io.Reader) {
+	randReaderMu.Lock()
+	defer randReaderMu.Unlock()
 	if r == nil {
 		randReader = rand.Reader
 	} else {
@@ -39,7 +50,7 @@ func RandomBytes(n int) ([]byte, error) {
 	}
 
 	b := make([]byte, n)
-	if _, err := io.ReadFull(randReader, b); err != nil {
+	if _, err := io.ReadFull(getRandReader(), b); err != nil {
 		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 	return b, nil
@@ -99,7 +110,7 @@ func RandomString(length int, charset string) (string, error) {
 	charsetLen := big.NewInt(int64(len(charset)))
 
 	for i := 0; i < length; i++ {
-		idx, err := rand.Int(randReader, charsetLen)
+		idx, err := rand.Int(getRandReader(), charsetLen)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate random index: %w", err)
 		}
@@ -174,7 +185,7 @@ func RandomInt(max int64) (int64, error) {
 		return 0, fmt.Errorf("max must be positive: %d", max)
 	}
 
-	n, err := rand.Int(randReader, big.NewInt(max))
+	n, err := rand.Int(getRandReader(), big.NewInt(max))
 	if err != nil {
 		return 0, fmt.Errorf("failed to generate random int: %w", err)
 	}

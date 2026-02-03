@@ -5,18 +5,25 @@ import (
 	"strings"
 )
 
+func constantTimeEqualString(a, b string) bool {
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
+	}
+
+	aa := make([]byte, maxLen)
+	bb := make([]byte, maxLen)
+	copy(aa, a)
+	copy(bb, b)
+
+	return subtle.ConstantTimeCompare(aa, bb) == 1 && len(a) == len(b)
+}
+
 // constantTimeEqualHex compares two hex strings in constant time (case-insensitive).
 // Both are normalized to lowercase and padded to the same length so that timing
 // does not leak length or per-byte matches. Used by SHA and MD5 Verify/Check.
 func constantTimeEqualHex(a, b string) bool {
-	aa := strings.ToLower(a)
-	bb := strings.ToLower(b)
-	if len(aa) < len(bb) {
-		aa += strings.Repeat("\x00", len(bb)-len(aa))
-	} else if len(bb) < len(aa) {
-		bb += strings.Repeat("\x00", len(aa)-len(bb))
-	}
-	return subtle.ConstantTimeCompare([]byte(aa), []byte(bb)) == 1 && len(a) == len(b)
+	return constantTimeEqualString(strings.ToLower(a), strings.ToLower(b))
 }
 
 // ConstantTimeEqual compares two strings in constant time to prevent timing attacks.
@@ -26,12 +33,22 @@ func constantTimeEqualHex(a, b string) bool {
 // regardless of how many characters match, preventing attackers from learning
 // information about the secret value through timing analysis.
 func ConstantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+	return constantTimeEqualString(a, b)
 }
 
 // ConstantTimeEqualBytes compares two byte slices in constant time.
 func ConstantTimeEqualBytes(a, b []byte) bool {
-	return subtle.ConstantTimeCompare(a, b) == 1
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
+	}
+
+	aa := make([]byte, maxLen)
+	bb := make([]byte, maxLen)
+	copy(aa, a)
+	copy(bb, b)
+
+	return subtle.ConstantTimeCompare(aa, bb) == 1 && len(a) == len(b)
 }
 
 // SecureCompare compares two strings and returns true if they are equal.
