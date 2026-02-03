@@ -3,7 +3,6 @@ package secure
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"strings"
 )
 
 // MD5Hasher implements the Hasher interface using MD5 algorithm.
@@ -31,11 +30,10 @@ func (h *MD5Hasher) Hash(plaintext string) (string, error) {
 }
 
 // Verify checks if the plaintext matches the given hash.
-// Comparison is case-insensitive for hex strings.
+// Uses constant-time comparison and is case-insensitive for hex strings.
 func (h *MD5Hasher) Verify(hash, plaintext string) bool {
-	// MD5 Hash() never returns an error, so we can safely ignore it
 	expected, _ := h.Hash(plaintext)
-	return strings.EqualFold(hash, expected)
+	return constantTimeEqualHex(hash, expected)
 }
 
 // Check implements the HashResolver interface.
@@ -56,7 +54,7 @@ type MD5Resolver struct{}
 
 // Check verifies if the plaintext matches the given MD5 hash.
 func (m *MD5Resolver) Check(hash, plaintext string) bool {
-	return strings.EqualFold(hash, GetMD5Hash(plaintext))
+	return constantTimeEqualHex(hash, GetMD5Hash(plaintext))
 }
 
 // GetMD5Hash computes the MD5 hash of the given text.

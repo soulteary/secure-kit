@@ -9,12 +9,16 @@ import (
 	"math/big"
 )
 
+// MaxRandomBytes is the maximum number of bytes that RandomBytes will generate in one call.
+// Larger requests return an error to prevent memory DoS. For longer output, call multiple times.
+const MaxRandomBytes = 1 << 20 // 1 MiB
+
 // randReader is the random source used by all random functions.
-// It defaults to crypto/rand.Reader but can be replaced for testing.
+// It defaults to crypto/rand.Reader. Only replace via SetRandReader in tests, and restore with SetRandReader(nil).
 var randReader io.Reader = rand.Reader
 
-// SetRandReader sets the random reader (for testing purposes only).
-// Pass nil to reset to the default crypto/rand.Reader.
+// SetRandReader sets the random reader for testing only. Do not use in production.
+// Callers must call SetRandReader(nil) when the test ends to restore crypto/rand.Reader.
 func SetRandReader(r io.Reader) {
 	if r == nil {
 		randReader = rand.Reader
@@ -25,9 +29,13 @@ func SetRandReader(r io.Reader) {
 
 // RandomBytes generates cryptographically secure random bytes.
 // Uses crypto/rand which is suitable for security-sensitive applications.
+// n must be in [1, MaxRandomBytes]; larger values return an error to prevent memory DoS.
 func RandomBytes(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, fmt.Errorf("invalid byte count: %d", n)
+	}
+	if n > MaxRandomBytes {
+		return nil, fmt.Errorf("byte count exceeds maximum %d: %d", MaxRandomBytes, n)
 	}
 
 	b := make([]byte, n)

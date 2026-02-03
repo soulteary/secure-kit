@@ -43,6 +43,18 @@ func TestRandomBytes(t *testing.T) {
 		_, err = RandomBytes(-1)
 		assert.Error(t, err)
 	})
+
+	t.Run("exceeds MaxRandomBytes", func(t *testing.T) {
+		_, err := RandomBytes(MaxRandomBytes + 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds maximum")
+	})
+
+	t.Run("at MaxRandomBytes succeeds", func(t *testing.T) {
+		b, err := RandomBytes(MaxRandomBytes)
+		require.NoError(t, err)
+		assert.Len(t, b, MaxRandomBytes)
+	})
 }
 
 func TestRandomBytesOrPanic(t *testing.T) {

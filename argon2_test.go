@@ -114,6 +114,15 @@ func TestArgon2Hasher_Verify(t *testing.T) {
 		assert.False(t, h.Verify("$argon2id$v=19$m=abc,t=1,p=4$salt$hash", "password"))
 	})
 
+	t.Run("PHC with excessive parameters rejected (DoS prevention)", func(t *testing.T) {
+		// Valid base64 salt (16 bytes) and hash (32 bytes); memory exceeds maxArgon2MemoryKB
+		malicious := "$argon2id$v=19$m=999999999,t=1,p=4$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+		assert.False(t, h.Verify(malicious, "password"))
+		// Excessive time
+		maliciousT := "$argon2id$v=19$m=65536,t=999,p=4$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+		assert.False(t, h.Verify(maliciousT, "password"))
+	})
+
 	t.Run("empty password verification", func(t *testing.T) {
 		hash, err := h.Hash("")
 		require.NoError(t, err)

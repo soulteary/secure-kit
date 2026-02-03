@@ -107,11 +107,15 @@ func MaskPhoneSimple(phone string) string {
 }
 
 // MaskString masks a string, showing only the first and last few characters.
+// visibleChars must be non-negative; if negative, returns "***" without panicking.
 //
 // Examples (with visibleChars=3):
 //   - "1234567890" -> "123***890"
 //   - "short" -> "***"
 func MaskString(s string, visibleChars int) string {
+	if visibleChars < 0 {
+		return "***"
+	}
 	if len(s) <= visibleChars*2 {
 		return "***"
 	}
