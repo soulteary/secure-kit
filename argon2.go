@@ -12,6 +12,14 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+// Maximum Argon2 parameters allowed when parsing PHC hashes (DoS prevention).
+// Attackers who control stored hashes could otherwise set extreme values.
+const (
+	maxArgon2MemoryKB = 512 * 1024 // 512 MB
+	maxArgon2Time     = 16
+	maxArgon2Threads  = 255
+)
+
 // Default Argon2 parameters
 // These are recommended values for most use cases.
 // For high-security applications, consider increasing memory and iterations.
@@ -239,6 +247,16 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 		case "p":
 			params.threads = uint8(val)
 		}
+	}
+
+	if params.memory > maxArgon2MemoryKB {
+		return nil, nil, nil, fmt.Errorf("argon2 memory exceeds maximum: %d", maxArgon2MemoryKB)
+	}
+	if params.time > maxArgon2Time {
+		return nil, nil, nil, fmt.Errorf("argon2 time exceeds maximum: %d", maxArgon2Time)
+	}
+	if params.threads > maxArgon2Threads {
+		return nil, nil, nil, fmt.Errorf("argon2 threads exceeds maximum: %d", maxArgon2Threads)
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])

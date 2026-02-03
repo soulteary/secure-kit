@@ -216,6 +216,18 @@ func TestMaskString(t *testing.T) {
 			visibleChars: 4,
 			expected:     "abcd***mnop",
 		},
+		{
+			name:         "visibleChars zero",
+			input:        "1234567890",
+			visibleChars: 0,
+			expected:     "***",
+		},
+		{
+			name:         "visibleChars negative no panic",
+			input:        "1234567890",
+			visibleChars: -1,
+			expected:     "***",
+		},
 	}
 
 	for _, tt := range tests {

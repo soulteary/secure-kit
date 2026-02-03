@@ -231,6 +231,8 @@ secure-kit/
 
 **Never use** SHA-256, SHA-512, or MD5 for password hashing. These are fast hashes designed for integrity checks, not password security.
 
+All hash verification in this package uses constant-time comparison to avoid timing side-channel leaks.
+
 ## Integration Example
 
 ### Herald (OTP Service)

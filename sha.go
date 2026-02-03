@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
-	"strings"
 )
 
 // SHA256Hasher implements the Hasher interface using SHA-256 algorithm.
@@ -25,11 +24,10 @@ func (h *SHA256Hasher) Hash(plaintext string) (string, error) {
 }
 
 // Verify checks if the plaintext matches the given hash.
-// Comparison is case-insensitive for hex strings.
+// Uses constant-time comparison and is case-insensitive for hex strings.
 func (h *SHA256Hasher) Verify(hash, plaintext string) bool {
-	// SHA256 Hash() never returns an error, so we can safely ignore it
 	expected, _ := h.Hash(plaintext)
-	return strings.EqualFold(hash, expected)
+	return constantTimeEqualHex(hash, expected)
 }
 
 // Check implements the HashResolver interface.
@@ -61,11 +59,10 @@ func (h *SHA512Hasher) Hash(plaintext string) (string, error) {
 }
 
 // Verify checks if the plaintext matches the given hash.
-// Comparison is case-insensitive for hex strings.
+// Uses constant-time comparison and is case-insensitive for hex strings.
 func (h *SHA512Hasher) Verify(hash, plaintext string) bool {
-	// SHA512 Hash() never returns an error, so we can safely ignore it
 	expected, _ := h.Hash(plaintext)
-	return strings.EqualFold(hash, expected)
+	return constantTimeEqualHex(hash, expected)
 }
 
 // Check implements the HashResolver interface.
@@ -84,7 +81,7 @@ type SHA512Resolver struct{}
 
 // Check verifies if the plaintext matches the given SHA-512 hash.
 func (s *SHA512Resolver) Check(hash, plaintext string) bool {
-	return strings.EqualFold(hash, GetSHA512Hash(plaintext))
+	return constantTimeEqualHex(hash, GetSHA512Hash(plaintext))
 }
 
 // GetSHA512Hash computes the SHA-512 hash of the given text.

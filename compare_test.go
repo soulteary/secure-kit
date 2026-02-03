@@ -118,6 +118,29 @@ func TestConstantTimeEqualBytes(t *testing.T) {
 	}
 }
 
+func TestConstantTimeEqualHex(t *testing.T) {
+	// constantTimeEqualHex is used by SHA/MD5 Verify; case-insensitive, constant-time.
+	tests := []struct {
+		name     string
+		a        string
+		b        string
+		expected bool
+	}{
+		{"equal lowercase", "abc123", "abc123", true},
+		{"equal mixed case", "AbC123", "abc123", true},
+		{"different same length", "abc123", "abc124", false},
+		{"different length", "abc12", "abc123", false},
+		{"empty both", "", "", true},
+		{"one empty", "a", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := constantTimeEqualHex(tt.a, tt.b)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 func TestSecureCompare(t *testing.T) {
 	// SecureCompare is an alias for ConstantTimeEqual
 	assert.True(t, SecureCompare("test", "test"))

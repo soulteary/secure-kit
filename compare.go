@@ -2,7 +2,22 @@ package secure
 
 import (
 	"crypto/subtle"
+	"strings"
 )
+
+// constantTimeEqualHex compares two hex strings in constant time (case-insensitive).
+// Both are normalized to lowercase and padded to the same length so that timing
+// does not leak length or per-byte matches. Used by SHA and MD5 Verify/Check.
+func constantTimeEqualHex(a, b string) bool {
+	aa := strings.ToLower(a)
+	bb := strings.ToLower(b)
+	if len(aa) < len(bb) {
+		aa += strings.Repeat("\x00", len(bb)-len(aa))
+	} else if len(bb) < len(aa) {
+		bb += strings.Repeat("\x00", len(aa)-len(bb))
+	}
+	return subtle.ConstantTimeCompare([]byte(aa), []byte(bb)) == 1 && len(a) == len(b)
+}
 
 // ConstantTimeEqual compares two strings in constant time to prevent timing attacks.
 // This should be used when comparing sensitive values like API keys, tokens, or hashes.
