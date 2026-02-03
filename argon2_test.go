@@ -1,6 +1,7 @@
 package secure
 
 import (
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -106,6 +107,16 @@ func TestArgon2Hasher_Verify(t *testing.T) {
 	t.Run("invalid base64 hash in simple format", func(t *testing.T) {
 		// Valid base64 salt but invalid base64 hash
 		assert.False(t, h.Verify("dGVzdHNhbHQ=:!!!invalid-base64!!!", "password"))
+	})
+
+	t.Run("simple format rejects oversized salt or hash", func(t *testing.T) {
+		oversizedSalt := base64.URLEncoding.EncodeToString(make([]byte, maxArgon2SaltLen+1))
+		validHash := base64.URLEncoding.EncodeToString(make([]byte, DefaultArgon2KeyLen))
+		assert.False(t, h.Verify(oversizedSalt+":"+validHash, "password"))
+
+		validSalt := base64.URLEncoding.EncodeToString(make([]byte, DefaultArgon2SaltLen))
+		oversizedHash := base64.URLEncoding.EncodeToString(make([]byte, maxArgon2HashLen+1))
+		assert.False(t, h.Verify(validSalt+":"+oversizedHash, "password"))
 	})
 
 	t.Run("invalid PHC format verification", func(t *testing.T) {

@@ -233,6 +233,12 @@ secure-kit/
 
 本包中所有哈希校验均使用恒定时间比较，以避免时序侧信道泄露。
 
+### 安全说明
+
+- 长期存储建议使用 `HashWithParams`（PHC 格式），以保留 Argon2 参数。
+- 若系统可能接收不可信的哈希输入，请自行限制长度/代价（例如 Argon2 参数上限、bcrypt 代价上限），避免 CPU 或内存 DoS。
+- `PlaintextHasher` 与 `MD5Hasher` 仅用于遗留兼容，生产路径请避免使用。
+
 ## 集成示例
 
 ### Herald（OTP 服务）

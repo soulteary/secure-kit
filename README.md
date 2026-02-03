@@ -233,6 +233,12 @@ secure-kit/
 
 All hash verification in this package uses constant-time comparison to avoid timing side-channel leaks.
 
+### Security Notes
+
+- Prefer `HashWithParams` (PHC format) for long-lived storage, so Argon2 parameters are preserved alongside the hash.
+- Treat stored hashes as trusted configuration. If your system accepts hashes from untrusted sources, enforce size/cost limits (e.g., Argon2 parameter caps and bcrypt cost caps) to avoid CPU or memory DoS.
+- `PlaintextHasher` and `MD5Hasher` exist only for legacy compatibility; avoid them in production paths.
+
 ## Integration Example
 
 ### Herald (OTP Service)
