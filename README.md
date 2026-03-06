@@ -285,7 +285,7 @@ func verifyPassword(algorithm, hash, password string) bool {
 
 ## Requirements
 
-- Go 1.25 or later
+- Go 1.26 or later
 - golang.org/x/crypto (for Argon2 and bcrypt)
 
 ## Test Coverage
