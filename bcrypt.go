@@ -1,6 +1,9 @@
 package secure
 
 import (
+	"errors"
+	"fmt"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -14,9 +17,16 @@ const DefaultBcryptCost = bcrypt.DefaultCost // 10
 // handles salt generation and includes the salt in the hash output.
 type BcryptHasher struct {
 	cost int
+
+	// optErrs collects rejected option values.
+	optErrs []error
 }
 
 // BcryptOption is a function that configures a BcryptHasher.
+//
+// An option given an out-of-range value records an error rather than silently
+// keeping the default: WithBcryptCost(14) quietly leaving the cost at 10 gives
+// the caller hashes weaker than the ones they asked for.
 type BcryptOption func(*BcryptHasher)
 
 // WithBcryptCost sets the bcrypt cost factor.
@@ -24,14 +34,28 @@ type BcryptOption func(*BcryptHasher)
 // Higher values increase security but also computation time.
 func WithBcryptCost(cost int) BcryptOption {
 	return func(h *BcryptHasher) {
-		if cost >= bcrypt.MinCost && cost <= bcrypt.MaxCost {
-			h.cost = cost
+		if cost < bcrypt.MinCost || cost > bcrypt.MaxCost {
+			h.optErrs = append(h.optErrs, fmt.Errorf("WithBcryptCost: %d out of range (%d..%d)", cost, bcrypt.MinCost, bcrypt.MaxCost))
+			return
 		}
+		h.cost = cost
 	}
 }
 
-// NewBcryptHasher creates a new bcrypt hasher with default or custom parameters.
+// NewBcryptHasher creates a new bcrypt hasher with default or custom
+// parameters. It panics if an option was given an out-of-range value; use
+// NewBcryptHasherStrict to handle that as an error.
 func NewBcryptHasher(opts ...BcryptOption) *BcryptHasher {
+	h, err := NewBcryptHasherStrict(opts...)
+	if err != nil {
+		panic("secure: " + err.Error())
+	}
+	return h
+}
+
+// NewBcryptHasherStrict is NewBcryptHasher, reporting invalid option values
+// instead of panicking.
+func NewBcryptHasherStrict(opts ...BcryptOption) (*BcryptHasher, error) {
 	h := &BcryptHasher{
 		cost: DefaultBcryptCost,
 	}
@@ -40,7 +64,10 @@ func NewBcryptHasher(opts ...BcryptOption) *BcryptHasher {
 		opt(h)
 	}
 
-	return h
+	if len(h.optErrs) > 0 {
+		return nil, errors.Join(h.optErrs...)
+	}
+	return h, nil
 }
 
 // Hash generates a bcrypt hash from the given plaintext.

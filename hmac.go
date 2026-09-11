@@ -137,6 +137,12 @@ func (v *HMACVerifier) Verify(payload []byte, signature string) bool {
 // VerifyAny checks if any of the provided signatures match the computed HMAC.
 // This is useful for webhooks that may send multiple signatures.
 // Uses constant-time comparison to prevent timing attacks.
+//
+// The second return value is the matching signature, and is EMPTY when nothing
+// matched. It previously returned the expected signature on the failure path
+// too, which handed a caller the correct HMAC for a payload whose signature
+// had just been rejected -- anything that logged or echoed it published a
+// forgeable value.
 func (v *HMACVerifier) VerifyAny(payload []byte, signatures []string) (bool, string) {
 	if !isValidHMACAlgorithm(v.algorithm) {
 		return false, ""
@@ -151,7 +157,7 @@ func (v *HMACVerifier) VerifyAny(payload []byte, signatures []string) (bool, str
 		}
 	}
 
-	return false, expected
+	return false, ""
 }
 
 // VerifyBase64 checks if the provided base64-encoded signature matches.
@@ -215,20 +221,42 @@ func VerifyHMACSHA512(payload []byte, secret, signature string) bool {
 
 // ExtractSignatures extracts signatures from a comma-separated list.
 // It also handles algorithm prefixes (e.g., "sha256=...").
+//
+// Entries carrying the prefix are returned with it stripped. Entries carrying
+// a DIFFERENT algorithm prefix are dropped -- previously a single unprefixed
+// value was returned verbatim whatever it was, so "sha1=xyz" came back as a
+// candidate "sha256" signature while the same value inside a comma-separated
+// list was correctly filtered out.
+//
+// Providers that send a bare signature with no prefix at all are still
+// supported: when no entry carries any "alg=" prefix, the values are returned
+// as-is.
 func ExtractSignatures(source, prefix string) []string {
-	// If there are multiple possible matches, split by comma
-	if strings.Contains(source, ",") {
-		parts := strings.Split(source, ",")
-		values := make([]string, 0, len(parts))
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, prefix) {
-				values = append(values, strings.TrimPrefix(part, prefix))
-			}
+	parts := strings.Split(source, ",")
+
+	values := make([]string, 0, len(parts))
+	anyPrefixed := false
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
 		}
+		if strings.Contains(part, "=") {
+			anyPrefixed = true
+		}
+		values = append(values, part)
+	}
+
+	if prefix == "" || !anyPrefixed {
 		return values
 	}
 
-	// Single signature, just trim the prefix
-	return []string{strings.TrimPrefix(source, prefix)}
+	matched := make([]string, 0, len(values))
+	for _, v := range values {
+		if strings.HasPrefix(v, prefix) {
+			matched = append(matched, strings.TrimPrefix(v, prefix))
+		}
+	}
+	return matched
 }

@@ -186,27 +186,40 @@ func TestArgon2Hasher_CustomParameters(t *testing.T) {
 		assert.True(t, h.Verify(hash, "password"))
 	})
 
-	t.Run("invalid parameters are ignored", func(t *testing.T) {
-		h := NewArgon2Hasher(
+	// Silently keeping the default for a rejected value meant
+	// WithArgon2Time(32) looked like it raised the work factor while leaving
+	// it at 1: the caller believed the stored hashes were stronger than they
+	// were, with nothing to reveal otherwise.
+	t.Run("zero parameters are rejected", func(t *testing.T) {
+		_, err := NewArgon2HasherStrict(
 			WithArgon2Time(0),
 			WithArgon2Memory(0),
 			WithArgon2Threads(0),
 			WithArgon2KeyLen(0),
 			WithArgon2SaltLen(0),
 		)
-		// Should use defaults
-		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+		require.Error(t, err)
+
+		assert.Panics(t, func() { NewArgon2Hasher(WithArgon2Time(0)) })
 	})
 
-	t.Run("out-of-range parameters are ignored", func(t *testing.T) {
-		h := NewArgon2Hasher(
+	t.Run("out-of-range parameters are rejected", func(t *testing.T) {
+		_, err := NewArgon2HasherStrict(
 			WithArgon2Time(maxArgon2Time+1),
 			WithArgon2Memory(maxArgon2MemoryKB+1),
 			WithArgon2KeyLen(maxArgon2HashLen+1),
 			WithArgon2SaltLen(maxArgon2SaltLen+1),
 		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "out of range")
+	})
+
+	t.Run("valid parameters still apply", func(t *testing.T) {
+		h, err := NewArgon2HasherStrict(WithArgon2Time(3), WithArgon2Memory(32*1024))
+		require.NoError(t, err)
+		assert.Equal(t, uint32(3), h.time)
+		assert.Equal(t, uint32(32*1024), h.memory)
+
 		hash, err := h.Hash("password")
 		require.NoError(t, err)
 		assert.True(t, h.Verify(hash, "password"))

@@ -98,6 +98,10 @@ func RandomBase64URL(n int) (string, error) {
 
 // RandomString generates a cryptographically secure random string
 // using the specified character set.
+//
+// The charset is treated as a set of CHARACTERS, not bytes. Indexing it by
+// byte, as this used to, split multi-byte runes and produced invalid UTF-8
+// for any non-ASCII charset -- while the documentation said "character set".
 func RandomString(length int, charset string) (string, error) {
 	if length <= 0 {
 		return "", fmt.Errorf("invalid length: %d", length)
@@ -106,15 +110,16 @@ func RandomString(length int, charset string) (string, error) {
 		return "", fmt.Errorf("charset cannot be empty")
 	}
 
-	result := make([]byte, length)
-	charsetLen := big.NewInt(int64(len(charset)))
+	runes := []rune(charset)
+	result := make([]rune, length)
+	charsetLen := big.NewInt(int64(len(runes)))
 
 	for i := 0; i < length; i++ {
 		idx, err := rand.Int(getRandReader(), charsetLen)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate random index: %w", err)
 		}
-		result[i] = charset[idx.Int64()]
+		result[i] = runes[idx.Int64()]
 	}
 
 	return string(result), nil
@@ -194,6 +199,11 @@ func RandomInt(max int64) (int64, error) {
 }
 
 // RandomIntRange generates a cryptographically secure random integer in [min, max].
+//
+// The full int64 range is supported. Computing max-min+1 in int64, as this used
+// to, overflows for a wide range -- [0, MaxInt64] produced a negative bound and
+// an error, and [MinInt64, MaxInt64] wrapped -- so the span is computed in
+// big.Int instead.
 func RandomIntRange(min, max int64) (int64, error) {
 	if min > max {
 		return 0, fmt.Errorf("min (%d) must not be greater than max (%d)", min, max)
@@ -202,12 +212,15 @@ func RandomIntRange(min, max int64) (int64, error) {
 		return min, nil
 	}
 
-	n, err := RandomInt(max - min + 1)
+	span := new(big.Int).Sub(big.NewInt(max), big.NewInt(min))
+	span.Add(span, big.NewInt(1))
+
+	n, err := rand.Int(getRandReader(), span)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to generate random int: %w", err)
 	}
 
-	return min + n, nil
+	return new(big.Int).Add(big.NewInt(min), n).Int64(), nil
 }
 
 // MustRandomBytes is like RandomBytes but panics on error.
