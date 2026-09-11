@@ -99,18 +99,25 @@ func TestBcryptHasher_CustomCost(t *testing.T) {
 		assert.True(t, h.Verify(hash, "password"))
 	})
 
-	t.Run("invalid cost is ignored", func(t *testing.T) {
-		h := NewBcryptHasher(WithBcryptCost(0))
-		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+	// Silently keeping the default meant WithBcryptCost(14) produced cost-10
+	// hashes: weaker than the caller asked for, with nothing to reveal it.
+	t.Run("invalid cost is rejected", func(t *testing.T) {
+		_, err := NewBcryptHasherStrict(WithBcryptCost(0))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "out of range")
+
+		assert.Panics(t, func() { NewBcryptHasher(WithBcryptCost(0)) })
 	})
 
-	t.Run("cost too high is ignored", func(t *testing.T) {
-		h := NewBcryptHasher(WithBcryptCost(100))
-		hash, err := h.Hash("password")
+	t.Run("cost too high is rejected", func(t *testing.T) {
+		_, err := NewBcryptHasherStrict(WithBcryptCost(100))
+		require.Error(t, err)
+	})
+
+	t.Run("valid cost applies", func(t *testing.T) {
+		h, err := NewBcryptHasherStrict(WithBcryptCost(bcrypt.MinCost + 1))
 		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+		assert.Equal(t, bcrypt.MinCost+1, h.cost)
 	})
 }
 
