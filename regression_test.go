@@ -140,3 +140,63 @@ func TestSimpleArgon2FormatIsParameterSensitive(t *testing.T) {
 		t.Error("PHC-format hash failed to verify after a parameter change; it records its own parameters")
 	}
 }
+
+// --- Codex review follow-ups (PR #4) ---
+
+// TestArgon2StrictValidatesCombinedParams: each option validates only its own
+// value, so memory=8 with threads=2 passed construction while x/crypto/argon2
+// requires memory >= 8*threads. HashWithParams then emitted a PHC string that
+// parseArgon2PHC rejects -- a hasher that cannot verify its own output.
+func TestArgon2StrictValidatesCombinedParams(t *testing.T) {
+	if _, err := NewArgon2HasherStrict(WithArgon2Memory(8), WithArgon2Threads(2)); err == nil {
+		t.Error("NewArgon2HasherStrict(memory=8, threads=2) returned nil error, want the illegal pair rejected")
+	}
+
+	// The panicking constructor must reject it too.
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("NewArgon2Hasher(memory=8, threads=2) did not panic")
+			}
+		}()
+		_ = NewArgon2Hasher(WithArgon2Memory(8), WithArgon2Threads(2))
+	}()
+
+	// A legal pair still constructs, and the hash it produces verifies.
+	h, err := NewArgon2HasherStrict(WithArgon2Memory(64), WithArgon2Threads(2), WithArgon2Time(1))
+	if err != nil {
+		t.Fatalf("NewArgon2HasherStrict(memory=64, threads=2) error = %v", err)
+	}
+	hash, err := h.HashWithParams("hunter2")
+	if err != nil {
+		t.Fatalf("HashWithParams error = %v", err)
+	}
+	if !h.Verify(hash, "hunter2") {
+		t.Error("Verify returned false for the PHC hash the hasher just produced")
+	}
+}
+
+// TestExtractSignaturesKeepsPaddedBase64: a bare Base64 signature ends in "="
+// padding. Treating any "=" as an algorithm prefix made such a value look
+// prefixed, so asking for "sha256=" filtered it away and returned nothing.
+func TestExtractSignaturesKeepsPaddedBase64(t *testing.T) {
+	for _, sig := range []string{"gpjdW5UE=", "gpjdW5U==", "gpjdW5UE"} {
+		got := ExtractSignatures(sig, "sha256=")
+		if len(got) != 1 || got[0] != sig {
+			t.Errorf("ExtractSignatures(%q, \"sha256=\") = %v, want [%q] (bare signatures stay supported)", sig, got, sig)
+		}
+	}
+
+	// A real prefix is still recognised and stripped.
+	if got := ExtractSignatures("sha256=abc123", "sha256="); len(got) != 1 || got[0] != "abc123" {
+		t.Errorf("ExtractSignatures(prefixed) = %v, want [abc123]", got)
+	}
+	// A prefixed value whose payload is padded Base64 keeps working.
+	if got := ExtractSignatures("sha256=Zm9vYmE=", "sha256="); len(got) != 1 || got[0] != "Zm9vYmE=" {
+		t.Errorf("ExtractSignatures(prefixed padded) = %v, want [Zm9vYmE=]", got)
+	}
+	// A different algorithm is still filtered out.
+	if got := ExtractSignatures("sha1=abc,sha256=def", "sha256="); len(got) != 1 || got[0] != "def" {
+		t.Errorf("ExtractSignatures(mixed) = %v, want [def]", got)
+	}
+}

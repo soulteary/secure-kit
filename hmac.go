@@ -231,6 +231,33 @@ func VerifyHMACSHA512(payload []byte, secret, signature string) bool {
 // Providers that send a bare signature with no prefix at all are still
 // supported: when no entry carries any "alg=" prefix, the values are returned
 // as-is.
+// signaturePrefixOf returns the leading "alg=" prefix of part, or "" when part
+// carries none.
+//
+// A bare Base64 signature ends in "=" padding, which is not an algorithm
+// prefix. Treating any "=" as one made "gpjd...W5UE=" look prefixed, so a
+// caller asking for "sha256=" filtered the value away and got an empty slice
+// -- rejecting the valid bare signatures this function documents support for.
+func signaturePrefixOf(part string) string {
+	i := strings.IndexByte(part, '=')
+	if i <= 0 {
+		return ""
+	}
+	// Everything after the "=" being padding means this was padding too.
+	if strings.Trim(part[i+1:], "=") == "" {
+		return ""
+	}
+	for _, r := range part[:i] {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '_':
+		default:
+			return ""
+		}
+	}
+	return part[:i+1]
+}
+
 func ExtractSignatures(source, prefix string) []string {
 	parts := strings.Split(source, ",")
 
@@ -242,7 +269,7 @@ func ExtractSignatures(source, prefix string) []string {
 		if part == "" {
 			continue
 		}
-		if strings.Contains(part, "=") {
+		if signaturePrefixOf(part) != "" {
 			anyPrefixed = true
 		}
 		values = append(values, part)

@@ -144,6 +144,16 @@ func NewArgon2HasherStrict(opts ...Argon2Option) (*Argon2Hasher, error) {
 	if len(h.optErrs) > 0 {
 		return nil, errors.Join(h.optErrs...)
 	}
+
+	// Each option validates only its own value, so a memory and a threads
+	// setting that are individually fine can still be an illegal pair.
+	// x/crypto/argon2 requires memory >= 8*threads, and parseArgon2PHC
+	// enforces it on the way back in -- without this check the hasher happily
+	// emits a PHC hash it cannot itself verify.
+	if h.memory < 8*uint32(h.threads) {
+		return nil, fmt.Errorf("argon2 memory %d is too small for %d threads (need at least %d)",
+			h.memory, h.threads, 8*uint32(h.threads))
+	}
 	return h, nil
 }
 
