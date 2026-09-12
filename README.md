@@ -42,31 +42,65 @@ type Hasher interface {
 ```go
 import secure "github.com/soulteary/secure-kit"
 
-// Create with default parameters
+// Default parameters
 hasher := secure.NewArgon2Hasher()
 
-// Or with custom parameters
-hasher := secure.NewArgon2Hasher(
+// Custom parameters
+hasher = secure.NewArgon2Hasher(
     secure.WithArgon2Time(2),
     secure.WithArgon2Memory(64*1024),
     secure.WithArgon2Threads(4),
 )
 
-// Hash a password
 hash, err := hasher.Hash("myPassword123!")
 if err != nil {
     log.Fatal(err)
 }
 
-// Verify a password
 if hasher.Verify(hash, "myPassword123!") {
     fmt.Println("Password matches!")
 }
 
-// PHC format (compatible with other implementations)
-hash, err := hasher.HashWithParams("password")
-// Output: $argon2id$v=19$m=65536,t=1,p=4$salt$hash
+// PHC format — records the parameters alongside the hash
+hash, err = hasher.HashWithParams("password")
+// $argon2id$v=19$m=65536,t=1,p=4$salt$hash
 ```
+
+#### Option validation
+
+An out-of-range option value is **rejected, not ignored**. `NewArgon2Hasher`
+panics on one; `NewArgon2HasherStrict` reports it as an error:
+
+```go
+hasher, err := secure.NewArgon2HasherStrict(secure.WithArgon2Time(32))
+if err != nil {
+    // "WithArgon2Time: 32 out of range (1..16)"
+}
+```
+
+| Option | Valid range |
+|--------|-------------|
+| `WithArgon2Time` | 1–16 |
+| `WithArgon2Memory` | 1–524288 (KiB, i.e. up to 512 MiB) |
+| `WithArgon2Threads` | 1–255 |
+| `WithArgon2KeyLen` | 1–1024 |
+| `WithArgon2SaltLen` | 1–1024 |
+
+Use the `Strict` constructor wherever the parameters come from configuration, so
+a bad value fails startup rather than the process.
+
+#### Choose the storage format deliberately
+
+`Hash` produces the simple `salt:hash` format, which **records no parameters**.
+`Verify` therefore re-derives with whatever the hasher is configured with *now*:
+any later change to memory, time, threads or keyLen makes **every stored hash
+fail**, reported as a wrong password, with no way to migrate.
+
+`HashWithParams` produces PHC format, which carries the parameters, so old hashes
+keep verifying after you raise the work factor. Use it unless an existing store
+forces the simple format.
+
+### bcrypt
 
 ### bcrypt
 
@@ -78,6 +112,13 @@ hasher := secure.NewBcryptHasher(secure.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
+```
+
+An out-of-range cost is rejected the same way — `NewBcryptHasher` panics,
+`NewBcryptHasherStrict` returns an error:
+
+```go
+hasher, err := secure.NewBcryptHasherStrict(secure.WithBcryptCost(14))
 ```
 
 ### SHA-256/SHA-512
@@ -104,6 +145,45 @@ hash, _ := hasher.Hash("data")
 // Helper function
 md5Hash := secure.GetMD5Hash("text")
 ```
+
+### HMAC Signatures
+
+```go
+verifier := secure.NewHMACVerifier(secure.HMACSHA256, "shared-secret")
+verifier = secure.NewHMACVerifierFromBytes(secure.HMACSHA256, secretBytes)
+
+sig := verifier.Sign(payload)            // hex
+sigB64 := verifier.SignBase64(payload)   // base64
+sigPrefixed := verifier.SignWithPrefix(payload) // "sha256=<hex>"
+
+ok := verifier.Verify(payload, sig)
+ok = verifier.VerifyBase64(payload, sigB64)
+```
+
+Algorithms: `secure.HMACSHA1`, `secure.HMACSHA256`, `secure.HMACSHA512`. The
+one-shot helpers are `ComputeHMACSHA1`, `ComputeHMACSHA256` and
+`ComputeHMACSHA512`.
+
+#### Verifying against several candidate signatures
+
+A webhook header may carry more than one signature during key rotation:
+
+```go
+candidates := secure.ExtractSignatures(r.Header.Get("X-Hub-Signature-256"), "sha256")
+
+ok, matched := verifier.VerifyAny(payload, candidates)
+if !ok {
+    // matched is EMPTY here. Safe to log.
+    return errUnauthorized
+}
+log.Printf("verified with %s", matched)
+```
+
+`matched` is the signature that matched, and is **empty when nothing did** — do
+not expect the expected value back on the failure path. `ExtractSignatures`
+applies its prefix filter uniformly, whether the source is a single value or a
+comma-separated list, and still accepts a bare unprefixed signature from
+providers that send one.
 
 ### Secure Random
 
@@ -134,9 +214,20 @@ uuid, err := secure.RandomUUID() // e.g., "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
 n, err := secure.RandomInt(100)           // [0, 100)
 n, err := secure.RandomIntRange(10, 20)   // [10, 20]
 
-// Custom charset
+// Custom charset — indexed by rune, so a non-ASCII charset works
 s, err := secure.RandomString(10, secure.CharsetAlphanumeric)
+s, err = secure.RandomString(10, "我你他abc")
 ```
+
+Charsets: `CharsetAlpha`, `CharsetAlphanumeric`, `CharsetAlphanumericLower`,
+`CharsetAlphanumericUpper`, `CharsetDigits`, `CharsetHex`, `CharsetURLSafe`.
+
+`RandomIntRange` computes its span in `big.Int`, so the full `int64` range works
+— including `[0, math.MaxInt64]` and `[math.MinInt64, math.MaxInt64]`.
+
+`RandomBytes` refuses a request above `secure.MaxRandomBytes` (1 MiB).
+`MustRandomBytes` and `RandomBytesOrPanic` panic instead of returning an error.
+`SetRandReader` swaps the entropy source, for tests only.
 
 ### Constant-Time Comparison
 
@@ -283,9 +374,45 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## Upgrade Notes (v1.6.0)
+
+**Two constructors can now panic where they previously returned a weaker hasher
+than you asked for.** That is the fix, not a regression.
+
+- **An out-of-range option value is rejected, not discarded.**
+  `WithArgon2Time(32)` left the work factor at `1`, and `WithBcryptCost(14)` left
+  the cost at `10` — no error, no panic, no way to tell. The caller believed the
+  stored hashes were stronger than they were, which is the worst failure mode for
+  a parameter whose whole purpose is strength. `NewArgon2Hasher` and
+  `NewBcryptHasher` now **panic** on an invalid value; `NewArgon2HasherStrict` and
+  `NewBcryptHasherStrict` report it as an error. **If you pass option values from
+  configuration, switch to the `Strict` constructors** so a bad value fails
+  startup instead of the process — and check whether any value you were passing
+  was silently out of range, because your stored hashes are weaker than intended.
+- **`VerifyAny` no longer returns the expected signature on failure.** The second
+  return value is documented as the matching signature, and on the failure path it
+  was the correct HMAC for the payload just rejected — so any caller that logged or
+  echoed it **published a forgeable value**. It is empty now unless something
+  matched.
+- **`RandomString` indexes runes, not bytes.** The parameter is documented as a
+  character set; indexing by byte split multi-byte runes and produced invalid UTF-8
+  for any non-ASCII charset.
+- **`RandomIntRange` handles the full `int64` range.** `max-min+1` was computed in
+  `int64`, so `[0, MaxInt64]` produced a negative bound and an error, and
+  `[MinInt64, MaxInt64]` wrapped. The span is computed in `big.Int`.
+- **`ExtractSignatures` filters the prefix uniformly.** The single-value path
+  skipped filtering entirely, so `"sha1=xyz"` came back as a candidate `sha256`
+  signature while the same value inside a comma-separated list was correctly
+  dropped.
+- **Documented, not changed**: the simple `salt:hash` Argon2 format records no
+  parameters, so `Verify` re-derives with the hasher's *current* settings and any
+  parameter change makes every stored hash fail as a wrong password. Use
+  `HashWithParams` (PHC) unless an existing store forces the simple format.
+- **Requirements said Go 1.26**; `go.mod` requires `1.27.0`.
+
 ## Requirements
 
-- Go 1.26 or later
+- **Go 1.27+** (`go.mod` declares `go 1.27.0`)
 - golang.org/x/crypto (for Argon2 and bcrypt)
 
 ## Test Coverage
