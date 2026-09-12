@@ -42,31 +42,62 @@ type Hasher interface {
 ```go
 import secure "github.com/soulteary/secure-kit"
 
-// 使用默认参数创建
+// 默认参数
 hasher := secure.NewArgon2Hasher()
 
-// 或使用自定义参数
-hasher := secure.NewArgon2Hasher(
+// 自定义参数
+hasher = secure.NewArgon2Hasher(
     secure.WithArgon2Time(2),
     secure.WithArgon2Memory(64*1024),
     secure.WithArgon2Threads(4),
 )
 
-// 哈希密码
 hash, err := hasher.Hash("myPassword123!")
 if err != nil {
     log.Fatal(err)
 }
 
-// 验证密码
 if hasher.Verify(hash, "myPassword123!") {
     fmt.Println("密码匹配！")
 }
 
-// PHC 格式（兼容其他实现）
-hash, err := hasher.HashWithParams("password")
-// 输出: $argon2id$v=19$m=65536,t=1,p=4$salt$hash
+// PHC 格式 —— 参数与哈希一起记录
+hash, err = hasher.HashWithParams("password")
+// $argon2id$v=19$m=65536,t=1,p=4$salt$hash
 ```
+
+#### 选项校验
+
+超出范围的选项值会被**拒绝，而不是忽略**。`NewArgon2Hasher` 会 panic；
+`NewArgon2HasherStrict` 以错误返回：
+
+```go
+hasher, err := secure.NewArgon2HasherStrict(secure.WithArgon2Time(32))
+if err != nil {
+    // "WithArgon2Time: 32 out of range (1..16)"
+}
+```
+
+| 选项 | 有效范围 |
+|------|----------|
+| `WithArgon2Time` | 1–16 |
+| `WithArgon2Memory` | 1–524288（KiB，即最多 512 MiB） |
+| `WithArgon2Threads` | 1–255 |
+| `WithArgon2KeyLen` | 1–1024 |
+| `WithArgon2SaltLen` | 1–1024 |
+
+参数来自配置文件时请使用 `Strict` 构造函数，这样坏值会让启动失败，而不是让进程 panic。
+
+#### 存储格式要有意识地选
+
+`Hash` 产出的是简单的 `salt:hash` 格式，它**不记录任何参数**。因此 `Verify` 会用
+hasher *当前*的配置重新推导：之后任何对 memory、time、threads 或 keyLen 的改动都会让
+**所有已存储的哈希失效**，表现为密码错误，而且无法迁移。
+
+`HashWithParams` 产出 PHC 格式，参数随哈希一起保存，因此提高工作因子之后旧哈希仍能
+校验通过。除非已有存储强制使用简单格式，否则请用它。
+
+### bcrypt
 
 ### bcrypt
 
@@ -78,6 +109,13 @@ hasher := secure.NewBcryptHasher(secure.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
+```
+
+超出范围的 cost 同样会被拒绝——`NewBcryptHasher` panic，`NewBcryptHasherStrict`
+返回错误：
+
+```go
+hasher, err := secure.NewBcryptHasherStrict(secure.WithBcryptCost(14))
 ```
 
 ### SHA-256/SHA-512
@@ -104,6 +142,42 @@ hash, _ := hasher.Hash("data")
 // 辅助函数
 md5Hash := secure.GetMD5Hash("text")
 ```
+
+### HMAC 签名
+
+```go
+verifier := secure.NewHMACVerifier(secure.HMACSHA256, "shared-secret")
+verifier = secure.NewHMACVerifierFromBytes(secure.HMACSHA256, secretBytes)
+
+sig := verifier.Sign(payload)            // 十六进制
+sigB64 := verifier.SignBase64(payload)   // base64
+sigPrefixed := verifier.SignWithPrefix(payload) // "sha256=<hex>"
+
+ok := verifier.Verify(payload, sig)
+ok = verifier.VerifyBase64(payload, sigB64)
+```
+
+算法：`secure.HMACSHA1`、`secure.HMACSHA256`、`secure.HMACSHA512`。一次性调用的辅助
+函数是 `ComputeHMACSHA1`、`ComputeHMACSHA256` 和 `ComputeHMACSHA512`。
+
+#### 对多个候选签名做校验
+
+密钥轮换期间，webhook 的 header 里可能带着多个签名：
+
+```go
+candidates := secure.ExtractSignatures(r.Header.Get("X-Hub-Signature-256"), "sha256")
+
+ok, matched := verifier.VerifyAny(payload, candidates)
+if !ok {
+    // 这里 matched 是空的，可以安全地打日志。
+    return errUnauthorized
+}
+log.Printf("verified with %s", matched)
+```
+
+`matched` 是匹配上的那个签名，**没有任何匹配时它是空的**——不要指望在失败路径上拿回
+期望值。`ExtractSignatures` 会统一应用前缀过滤，不管来源是单个值还是逗号分隔的列表，
+并且仍然支持那些发送不带前缀签名的服务商。
 
 ### 安全随机数
 
@@ -134,9 +208,20 @@ uuid, err := secure.RandomUUID() // 例如 "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
 n, err := secure.RandomInt(100)           // [0, 100)
 n, err := secure.RandomIntRange(10, 20)   // [10, 20]
 
-// 自定义字符集
+// 自定义字符集 —— 按 rune 取值，因此非 ASCII 字符集也能用
 s, err := secure.RandomString(10, secure.CharsetAlphanumeric)
+s, err = secure.RandomString(10, "我你他abc")
 ```
+
+字符集常量：`CharsetAlpha`、`CharsetAlphanumeric`、`CharsetAlphanumericLower`、
+`CharsetAlphanumericUpper`、`CharsetDigits`、`CharsetHex`、`CharsetURLSafe`。
+
+`RandomIntRange` 用 `big.Int` 计算区间宽度，因此整个 `int64` 范围都可用——包括
+`[0, math.MaxInt64]` 和 `[math.MinInt64, math.MaxInt64]`。
+
+`RandomBytes` 会拒绝超过 `secure.MaxRandomBytes`（1 MiB）的请求。
+`MustRandomBytes` 和 `RandomBytesOrPanic` 在出错时 panic 而不是返回错误。
+`SetRandReader` 可替换熵源，仅用于测试。
 
 ### 常量时间比较
 
@@ -283,9 +368,37 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## 升级说明（v1.6.0）
+
+**有两个构造函数现在会 panic，而它们此前只是默默给了你一个比你要求的更弱的 hasher。**
+这是修复，不是回归。
+
+- **超出范围的选项值会被拒绝，而不是丢弃。** `WithArgon2Time(32)` 此前让工作因子停在
+  `1`，`WithBcryptCost(14)` 让 cost 停在 `10`——不报错、不 panic、也无从察觉。调用方相信
+  存下来的哈希比实际更强，而对一个存在意义就是"强度"的参数来说，这是最糟糕的失效方式。
+  现在 `NewArgon2Hasher` 和 `NewBcryptHasher` 遇到非法值会 **panic**；
+  `NewArgon2HasherStrict` 和 `NewBcryptHasherStrict` 以错误返回。**如果你的选项值来自
+  配置，请改用 `Strict` 构造函数**，这样坏值会让启动失败而不是让进程挂掉——并且请检查
+  你传过的值里有没有本来就超范围的，因为那些已存储的哈希比你预期的更弱。
+- **`VerifyAny` 在失败时不再返回期望签名。** 第二个返回值的文档是"匹配上的签名"，而在
+  失败路径上它是刚被拒绝的那个 payload 的正确 HMAC——于是任何打日志或回显它的调用方都
+  **发布了一个可伪造的值**。现在除非真有匹配，它就是空的。
+- **`RandomString` 按 rune 取值，而不是按字节。** 这个参数的文档说的是字符集；按字节取值
+  会切断多字节 rune，对任何非 ASCII 字符集都产出非法 UTF-8。
+- **`RandomIntRange` 支持完整的 `int64` 范围。** `max-min+1` 此前在 `int64` 里计算，
+  于是 `[0, MaxInt64]` 得到负的上界并报错，`[MinInt64, MaxInt64]` 则回绕。现在区间宽度
+  用 `big.Int` 计算。
+- **`ExtractSignatures` 统一做前缀过滤。** 单值路径此前完全跳过了过滤，于是
+  `"sha1=xyz"` 会作为候选的 `sha256` 签名返回，而同一个值出现在逗号分隔列表里时却会被
+  正确丢弃。
+- **只是补充文档、行为未变**：简单的 `salt:hash` Argon2 格式不记录参数，因此 `Verify`
+  会用 hasher *当前*的设置重新推导，任何参数改动都会让所有已存储的哈希以"密码错误"
+  失效。除非已有存储强制使用简单格式，否则请用 `HashWithParams`（PHC）。
+- **要求里写的是 Go 1.26**；`go.mod` 需要 `1.27.0`。
+
 ## 要求
 
-- Go 1.26 或更高版本
+- **Go 1.27+**（`go.mod` 声明 `go 1.27.0`）
 - golang.org/x/crypto（用于 Argon2 和 bcrypt）
 
 ## 测试覆盖率
