@@ -7,11 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The Argon2 and bcrypt hashers are exercised against these same interfaces
+// from the passwd subpackage, where they live -- see passwd/interface_test.go.
+// They are the reason that subpackage exists: they are the only thing here
+// that needs golang.org/x/crypto.
+
 // TestHasherInterface verifies that all hashers implement the Hasher interface correctly
 func TestHasherInterface(t *testing.T) {
 	hashers := []Hasher{
-		NewArgon2Hasher(),
-		NewBcryptHasher(),
 		NewSHA256Hasher(),
 		NewSHA512Hasher(),
 		NewMD5Hasher(),
@@ -46,13 +49,10 @@ func TestHashResolverInterface(t *testing.T) {
 		resolver HashResolver
 		hasher   Hasher
 	}{
-		{"Argon2", NewArgon2Hasher(), NewArgon2Hasher()},
-		{"Bcrypt", NewBcryptHasher(), NewBcryptHasher()},
 		{"SHA256", NewSHA256Hasher(), NewSHA256Hasher()},
 		{"SHA512", NewSHA512Hasher(), NewSHA512Hasher()},
 		{"MD5", NewMD5Hasher(), NewMD5Hasher()},
 		{"Plaintext", NewPlaintextHasher(), NewPlaintextHasher()},
-		{"BcryptResolver", &BcryptResolver{}, NewBcryptHasher()},
 		{"SHA512Resolver", &SHA512Resolver{}, NewSHA512Hasher()},
 		{"MD5Resolver", &MD5Resolver{}, NewMD5Hasher()},
 		{"PlaintextResolver", &PlaintextResolver{}, NewPlaintextHasher()},
@@ -77,8 +77,6 @@ func TestHashResolverInterface(t *testing.T) {
 // TestHasherConsistency tests that hashers produce consistent verification results
 func TestHasherConsistency(t *testing.T) {
 	hashers := []Hasher{
-		NewArgon2Hasher(),
-		NewBcryptHasher(),
 		NewSHA256Hasher(),
 		NewSHA512Hasher(),
 		NewMD5Hasher(),
@@ -128,32 +126,6 @@ func TestDeterministicHashes(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, hash1, hash2, "%s should produce deterministic hashes", h.Algorithm())
-		})
-	}
-}
-
-// TestSaltedHashes tests that salted hashes are non-deterministic
-func TestSaltedHashes(t *testing.T) {
-	saltedHashers := []Hasher{
-		NewArgon2Hasher(),
-		NewBcryptHasher(),
-	}
-
-	password := "testPassword"
-
-	for _, h := range saltedHashers {
-		t.Run(h.Algorithm(), func(t *testing.T) {
-			hash1, err := h.Hash(password)
-			require.NoError(t, err)
-
-			hash2, err := h.Hash(password)
-			require.NoError(t, err)
-
-			assert.NotEqual(t, hash1, hash2, "%s should produce different hashes due to salt", h.Algorithm())
-
-			// But both should verify correctly
-			assert.True(t, h.Verify(hash1, password))
-			assert.True(t, h.Verify(hash2, password))
 		})
 	}
 }

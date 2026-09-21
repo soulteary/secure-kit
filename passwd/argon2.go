@@ -1,4 +1,12 @@
-package secure
+// Package passwd provides the password hashers that need golang.org/x/crypto:
+// Argon2id and bcrypt.
+//
+// They live here rather than in the root package so that importing secure-kit
+// for its random numbers, HMAC helpers, constant-time comparison or masking
+// does not link x/crypto -- and with it x/sys -- into a binary that never
+// hashes a password. Both implement secure.Hasher, and salts come from
+// secure.RandReader, so secure.SetRandReader still controls them.
+package passwd
 
 import (
 	"crypto/subtle"
@@ -10,6 +18,8 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+
+	secure "github.com/soulteary/secure-kit/v2"
 )
 
 // Maximum Argon2 parameters allowed when parsing PHC hashes (DoS prevention).
@@ -33,7 +43,7 @@ const (
 	DefaultArgon2SaltLen = 16        // 128 bits
 )
 
-// Argon2Hasher implements the Hasher interface using Argon2id algorithm.
+// Argon2Hasher implements the secure.Hasher interface using Argon2id algorithm.
 // Argon2id is the recommended variant as it provides both side-channel attack
 // resistance (from Argon2i) and GPU attack resistance (from Argon2d).
 type Argon2Hasher struct {
@@ -169,7 +179,7 @@ func NewArgon2HasherStrict(opts ...Argon2Option) (*Argon2Hasher, error) {
 // existing store forces this one.
 func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := io.ReadFull(getRandReader(), salt); err != nil {
+	if _, err := io.ReadFull(secure.RandReader(), salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
@@ -184,7 +194,7 @@ func (h *Argon2Hasher) Hash(plaintext string) (string, error) {
 // This format is compatible with other Argon2 implementations (PHC format).
 func (h *Argon2Hasher) HashWithParams(plaintext string) (string, error) {
 	salt := make([]byte, h.saltLen)
-	if _, err := io.ReadFull(getRandReader(), salt); err != nil {
+	if _, err := io.ReadFull(secure.RandReader(), salt); err != nil {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
@@ -269,7 +279,7 @@ func (h *Argon2Hasher) verifyPHC(hash, plaintext string) (ok bool) {
 	return subtle.ConstantTimeCompare(actualHash, expectedHash) == 1
 }
 
-// Check implements the HashResolver interface.
+// Check implements the secure.HashResolver interface.
 func (h *Argon2Hasher) Check(hash, plaintext string) bool {
 	return h.Verify(hash, plaintext)
 }

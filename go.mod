@@ -1,4 +1,4 @@
-module github.com/soulteary/secure-kit
+module github.com/soulteary/secure-kit/v2
 
 go 1.27.0
 
