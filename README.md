@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/soulteary/secure-kit/graph/badge.svg)](https://codecov.io/gh/soulteary/secure-kit)
 
-[中文文档](README_CN.md)
+[中文文档](README_CN.md) | [Changelog](CHANGELOG.md)
 
 A unified cryptographic toolkit for Go services: hash functions (Argon2, bcrypt,
 SHA, MD5), secure random number generation, constant-time comparison, HMAC
@@ -165,15 +165,13 @@ forces the simple format.
 
 ### bcrypt
 
-### bcrypt
-
 ```go
 import "github.com/soulteary/secure-kit/v2/passwd"
 
 hasher := passwd.NewBcryptHasher()
 
 // Or with custom cost
-hasher := passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
+hasher = passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
@@ -293,7 +291,9 @@ Charsets: `CharsetAlpha`, `CharsetAlphanumeric`, `CharsetAlphanumericLower`,
 — including `[0, math.MaxInt64]` and `[math.MinInt64, math.MaxInt64]`.
 
 `RandomBytes` refuses a request above `secure.MaxRandomBytes` (1 MiB).
-`MustRandomBytes` and `RandomBytesOrPanic` panic instead of returning an error.
+`RandomBytesOrPanic` panics instead of returning an error. `MustRandomBytes`
+does the same and is **deprecated** — it is kept for compatibility, but new code
+should call `RandomBytesOrPanic`.
 `SetRandReader` swaps the entropy source, for tests only.
 
 ### Constant-Time Comparison
@@ -327,7 +327,8 @@ secure.MaskCreditCard("4111-1111-1111-1111") // "****-****-****-1111"
 
 // IP address masking
 secure.MaskIPAddress("192.168.1.100") // "192.*.*.*"
-secure.MaskIPAddress("2001:db8::1")   // "2001:****:****:..."
+// IPv6 always yields the first group plus seven masked ones:
+secure.MaskIPAddress("2001:db8::1")   // "2001:****:****:****:****:****:****:****"
 
 // API key masking
 secure.MaskAPIKey("sk_live_abcdefghijklmnop") // "sk_l***mnop"
@@ -381,7 +382,8 @@ secure-kit/
 ├── deps_test.go      # Guards that the root package stays standard-library only
 ├── passwd/           # The only packages needing golang.org/x/crypto
 │   ├── argon2.go     # Argon2id implementation
-│   └── bcrypt.go     # bcrypt implementation
+│   ├── bcrypt.go     # bcrypt implementation
+│   └── *_test.go     # Tests for the password hashers
 └── *_test.go         # Comprehensive tests
 ```
 
@@ -456,6 +458,8 @@ func verifyPassword(algorithm, hash, password string) bool {
 ```
 
 ## Upgrade Notes (v2.0.0)
+
+The full release history is in [CHANGELOG.md](CHANGELOG.md).
 
 **The module path changed and the password hashers moved.** Both steps are in
 the banner at the top of this file; in short:

@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/soulteary/secure-kit/graph/badge.svg)](https://codecov.io/gh/soulteary/secure-kit)
 
-[English](README.md)
+[English](README.md) | [更新日志](CHANGELOG.md)
 
 统一的 Go 服务加密工具包。提供哈希函数（Argon2、bcrypt、SHA、MD5）、安全随机数生成、
 常量时间比较、HMAC 校验和敏感数据脱敏工具。根包不依赖标准库之外的任何东西——两个需要
@@ -152,15 +152,13 @@ hasher *当前*的配置重新推导：之后任何对 memory、time、threads �
 
 ### bcrypt
 
-### bcrypt
-
 ```go
 import "github.com/soulteary/secure-kit/v2/passwd"
 
 hasher := passwd.NewBcryptHasher()
 
 // 或使用自定义代价因子
-hasher := passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
+hasher = passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
@@ -277,7 +275,8 @@ s, err = secure.RandomString(10, "我你他abc")
 `[0, math.MaxInt64]` 和 `[math.MinInt64, math.MaxInt64]`。
 
 `RandomBytes` 会拒绝超过 `secure.MaxRandomBytes`（1 MiB）的请求。
-`MustRandomBytes` 和 `RandomBytesOrPanic` 在出错时 panic 而不是返回错误。
+`RandomBytesOrPanic` 在出错时 panic 而不是返回错误。`MustRandomBytes` 行为相同，
+但**已废弃**——它为兼容旧代码而保留，新代码请用 `RandomBytesOrPanic`。
 `SetRandReader` 可替换熵源，仅用于测试。
 
 ### 常量时间比较
@@ -311,7 +310,8 @@ secure.MaskCreditCard("4111-1111-1111-1111") // "****-****-****-1111"
 
 // IP 地址脱敏
 secure.MaskIPAddress("192.168.1.100") // "192.*.*.*"
-secure.MaskIPAddress("2001:db8::1")   // "2001:****:****:..."
+// IPv6 固定返回第一组加七组掩码：
+secure.MaskIPAddress("2001:db8::1")   // "2001:****:****:****:****:****:****:****"
 
 // API 密钥脱敏
 secure.MaskAPIKey("sk_live_abcdefghijklmnop") // "sk_l***mnop"
@@ -365,7 +365,8 @@ secure-kit/
 ├── deps_test.go      # 守住「根包只用标准库」这条线
 ├── passwd/           # 唯一需要 golang.org/x/crypto 的包
 │   ├── argon2.go     # Argon2id 实现
-│   └── bcrypt.go     # bcrypt 实现
+│   ├── bcrypt.go     # bcrypt 实现
+│   └── *_test.go     # 密码哈希器的测试
 └── *_test.go         # 完整测试
 ```
 
@@ -440,6 +441,8 @@ func verifyPassword(algorithm, hash, password string) bool {
 ```
 
 ## 升级说明（v2.0.0）
+
+完整的版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 **模块路径变了，密码哈希器也移了位置。** 两步都写在文件开头的提示框里，简而言之：
 
