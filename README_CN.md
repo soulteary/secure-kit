@@ -74,6 +74,33 @@ go get github.com/soulteary/secure-kit/v2
 go get github.com/soulteary/secure-kit/v2/passwd
 ```
 
+## 导入的代价
+
+用 Go 1.27 实测，程序除了这个 kit 没有别的依赖：
+
+| 你导入的 | 你的 `go.sum` 多出的行 | `// indirect` 依赖 | 链接的包数 |
+|---|---|---|---|
+| 只有根包 | 2 行（本 kit 自己） | 无 | 107 |
+| 根包加 `passwd` | 6 行（本 kit、x/crypto、x/sys） | `golang.org/x/crypto`、`golang.org/x/sys` | 114 |
+
+这两个数字能一直成立，有两件事值得知道。
+
+**测试也算。** 你的模块跑 `go mod tidy` 时，会连你导入的那些包的测试依赖一起走一遍，
+所以这里的「仅测试用」依赖照样会传到你身上。v2.1.0 之前 testify 就是这样：
+`github.com/stretchr/testify` 和 `go.yaml.in/yaml/v3`，你的 `go.sum` 里四行、
+module graph 里两个模块——而那些服务从来不会构建这些测试。现在 kit 自己的测试只用标准库，
+`deps_test.go` 会在这件事退步时失败，包依赖图和测试二进制各查一次。
+
+**包没过来，版本下界还是会过来。** 把哈希器挪进子包，能让 `golang.org/x/crypto`
+不进你的二进制、不进你的 `go.sum`、不进你的 `go.mod`，但挡不住它进你的
+*module graph*：MVS 仍然会读这个 kit 的 `go.mod`，所以无论你有没有导入 `passwd`，
+`golang.org/x/crypto v0.57.0` 都是你这次构建的版本下界；你的模块要是钉了更旧的版本，
+加入这个 kit 会把它抬上来。`go mod why -m golang.org/x/crypto` 会回答
+"main module does not need module golang.org/x/crypto"，而 `go list -m all`
+里它仍然在——如果有合规流程在审 `go list -m all`，这就是要给出的解释。导入 `passwd`
+会把同样的效果延伸到 x/crypto 自己的依赖上：`golang.org/x/net`、`x/term`、`x/text`
+会进 graph，但同样不会被链接。
+
 ## 使用
 
 ### 哈希接口
@@ -362,11 +389,14 @@ secure-kit/
 ├── random.go         # 安全随机数生成
 ├── mask.go           # 敏感数据脱敏
 ├── hmac.go           # HMAC 计算与校验
-├── deps_test.go      # 守住「根包只用标准库」这条线
+├── deps_test.go      # 守住「根包和它的测试二进制都只用标准库」这条线
+├── assert_test.go    # 测试用的标准库断言，用来替掉测试框架
+├── example_test.go   # 可运行的 Example，输出由 go test 校验
 ├── passwd/           # 唯一需要 golang.org/x/crypto 的包
 │   ├── argon2.go     # Argon2id 实现
 │   ├── bcrypt.go     # bcrypt 实现
-│   └── *_test.go     # 密码哈希器的测试
+│   ├── deps_test.go  # 守住「passwd 最多只碰 x/crypto 和 x/sys」这条线
+│   └── *_test.go     # 密码哈希器的测试与 Example
 └── *_test.go         # 完整测试
 ```
 
@@ -495,6 +525,8 @@ func verifyPassword(algorithm, hash, password string) bool {
 
 - **Go 1.27+**（`go.mod` 声明 `go 1.27.0`）
 - golang.org/x/crypto —— 只有 `passwd` 子包（Argon2 与 bcrypt）需要；根包只用标准库
+- 没有测试依赖。kit 自己的测试也只用标准库，否则你的模块 `go mod tidy` 会把它们记下来——
+  见[导入的代价](#导入的代价)
 
 ## 测试覆盖率
 

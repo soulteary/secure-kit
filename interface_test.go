@@ -2,9 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // The Argon2 and bcrypt hashers are exercised against these same interfaces
@@ -27,17 +24,17 @@ func TestHasherInterface(t *testing.T) {
 
 			// Test Hash
 			hash, err := h.Hash(password)
-			require.NoError(t, err)
-			assert.NotEmpty(t, hash)
+			mustNoError(t, err)
+			wantNotEmpty(t, hash)
 
 			// Test Verify with correct password
-			assert.True(t, h.Verify(hash, password))
+			wantTrue(t, h.Verify(hash, password))
 
 			// Test Verify with incorrect password
-			assert.False(t, h.Verify(hash, "wrongPassword"))
+			wantFalse(t, h.Verify(hash, "wrongPassword"))
 
 			// Test Algorithm returns non-empty string
-			assert.NotEmpty(t, h.Algorithm())
+			wantNotEmpty(t, h.Algorithm())
 		})
 	}
 }
@@ -63,13 +60,13 @@ func TestHashResolverInterface(t *testing.T) {
 			password := "testPassword123!"
 
 			hash, err := tt.hasher.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
 			// Test Check with correct password
-			assert.True(t, tt.resolver.Check(hash, password))
+			wantTrue(t, tt.resolver.Check(hash, password))
 
 			// Test Check with incorrect password
-			assert.False(t, tt.resolver.Check(hash, "wrongPassword"))
+			wantFalse(t, tt.resolver.Check(hash, "wrongPassword"))
 		})
 	}
 }
@@ -95,11 +92,11 @@ func TestHasherConsistency(t *testing.T) {
 		for _, password := range passwords {
 			t.Run(h.Algorithm()+"/"+password, func(t *testing.T) {
 				hash, err := h.Hash(password)
-				require.NoError(t, err)
+				mustNoError(t, err)
 
 				// Verify should always return true for correct password
 				for i := 0; i < 10; i++ {
-					assert.True(t, h.Verify(hash, password))
+					wantTrue(t, h.Verify(hash, password))
 				}
 			})
 		}
@@ -120,12 +117,14 @@ func TestDeterministicHashes(t *testing.T) {
 	for _, h := range deterministicHashers {
 		t.Run(h.Algorithm(), func(t *testing.T) {
 			hash1, err := h.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
 			hash2, err := h.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
-			assert.Equal(t, hash1, hash2, "%s should produce deterministic hashes", h.Algorithm())
+			if hash1 != hash2 {
+				t.Errorf("%s hashed the same password to %q and then %q", h.Algorithm(), hash1, hash2)
+			}
 		})
 	}
 }

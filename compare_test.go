@@ -2,8 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConstantTimeEqual(t *testing.T) {
@@ -66,7 +64,7 @@ func TestConstantTimeEqual(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConstantTimeEqual(tt.a, tt.b)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -113,7 +111,7 @@ func TestConstantTimeEqualBytes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConstantTimeEqualBytes(tt.a, tt.b)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -136,21 +134,21 @@ func TestConstantTimeEqualHex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := constantTimeEqualHex(tt.a, tt.b)
-			assert.Equal(t, tt.expected, got)
+			wantEqual(t, tt.expected, got)
 		})
 	}
 }
 
 func TestSecureCompare(t *testing.T) {
 	// SecureCompare is an alias for ConstantTimeEqual
-	assert.True(t, SecureCompare("test", "test"))
-	assert.False(t, SecureCompare("test", "different"))
+	wantTrue(t, SecureCompare("test", "test"))
+	wantFalse(t, SecureCompare("test", "different"))
 }
 
 func TestTimingSafeEqual(t *testing.T) {
 	// TimingSafeEqual is an alias for ConstantTimeEqual
-	assert.True(t, TimingSafeEqual("test", "test"))
-	assert.False(t, TimingSafeEqual("test", "different"))
+	wantTrue(t, TimingSafeEqual("test", "test"))
+	wantFalse(t, TimingSafeEqual("test", "different"))
 }
 
 func BenchmarkConstantTimeEqual(b *testing.B) {

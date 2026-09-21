@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  # Go modules. x/crypto is the only direct dependency left, and it is the one
+  # this kit exists to keep out of everyone else's binary, so its updates are
+  # worth seeing promptly. Majors stay out of the group: for a cryptographic
+  # dependency a major is a judgement call, not a rubber stamp.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
+    groups:
+      go-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Workflow actions. The release gate lives here too, so a silently stale
+  # action is a stale release check.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"

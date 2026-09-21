@@ -2,9 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPlaintextHasher_Hash(t *testing.T) {
@@ -13,14 +10,14 @@ func TestPlaintextHasher_Hash(t *testing.T) {
 	t.Run("returns unchanged", func(t *testing.T) {
 		input := "password123"
 		hash, err := h.Hash(input)
-		require.NoError(t, err)
-		assert.Equal(t, input, hash)
+		mustNoError(t, err)
+		wantEqual(t, input, hash)
 	})
 
 	t.Run("empty string", func(t *testing.T) {
 		hash, err := h.Hash("")
-		require.NoError(t, err)
-		assert.Equal(t, "", hash)
+		mustNoError(t, err)
+		wantEqual(t, "", hash)
 	})
 }
 
@@ -28,47 +25,47 @@ func TestPlaintextHasher_Verify(t *testing.T) {
 	h := NewPlaintextHasher()
 
 	t.Run("correct match", func(t *testing.T) {
-		assert.True(t, h.Verify("password", "password"))
+		wantTrue(t, h.Verify("password", "password"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
-		assert.False(t, h.Verify("password", "wrong"))
+		wantFalse(t, h.Verify("password", "wrong"))
 	})
 
 	t.Run("empty strings match", func(t *testing.T) {
-		assert.True(t, h.Verify("", ""))
+		wantTrue(t, h.Verify("", ""))
 	})
 
 	t.Run("case sensitive", func(t *testing.T) {
-		assert.False(t, h.Verify("Password", "password"))
+		wantFalse(t, h.Verify("Password", "password"))
 	})
 }
 
 func TestPlaintextHasher_Check(t *testing.T) {
 	h := NewPlaintextHasher()
 
-	assert.True(t, h.Check("password", "password"))
-	assert.False(t, h.Check("password", "wrong"))
+	wantTrue(t, h.Check("password", "password"))
+	wantFalse(t, h.Check("password", "wrong"))
 }
 
 func TestPlaintextHasher_Algorithm(t *testing.T) {
 	h := NewPlaintextHasher()
-	assert.Equal(t, "plaintext", h.Algorithm())
+	wantEqual(t, "plaintext", h.Algorithm())
 }
 
 func TestPlaintextResolver(t *testing.T) {
 	resolver := &PlaintextResolver{}
 
 	t.Run("correct match", func(t *testing.T) {
-		assert.True(t, resolver.Check("password", "password"))
+		wantTrue(t, resolver.Check("password", "password"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
-		assert.False(t, resolver.Check("password", "wrong"))
+		wantFalse(t, resolver.Check("password", "wrong"))
 	})
 
 	t.Run("empty strings", func(t *testing.T) {
-		assert.True(t, resolver.Check("", ""))
+		wantTrue(t, resolver.Check("", ""))
 	})
 }
 
