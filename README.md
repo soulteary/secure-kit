@@ -84,6 +84,37 @@ a program that imports it links that dependency:
 go get github.com/soulteary/secure-kit/v2/passwd
 ```
 
+## What Importing Costs
+
+Measured with Go 1.27, for a program whose only dependency is this kit:
+
+| You import | Lines added to your `go.sum` | `// indirect` requirements | Linked packages |
+|---|---|---|---|
+| the root package | 2 (this kit) | none | 107 |
+| the root package and `passwd` | 6 (this kit, x/crypto, x/sys) | `golang.org/x/crypto`, `golang.org/x/sys` | 114 |
+
+Two things are worth knowing about how those numbers stay true.
+
+**The tests count too.** `go mod tidy` in your module walks the tests of the
+packages you import, so a test-only dependency here reaches you all the same.
+Until v2.1.0 testify did exactly that — `github.com/stretchr/testify` and
+`go.yaml.in/yaml/v3`, four lines of `go.sum` and two modules of module graph,
+in services that never built these tests. The kit's own tests now use the
+standard library only, and `deps_test.go` fails if that regresses, for the
+package graph and for the test binary separately.
+
+**A version floor travels even where the package does not.** Moving the
+hashers into a subpackage keeps `golang.org/x/crypto` out of your binary, out
+of your `go.sum` and out of your `go.mod`. It does not keep it out of your
+*module graph*: minimal version selection still reads this kit's `go.mod`, so
+`golang.org/x/crypto v0.57.0` is a lower bound for your build whether or not
+you import `passwd`, and if your module pins something older, adding this kit
+raises it. `go mod why -m golang.org/x/crypto` will answer "main module does
+not need module golang.org/x/crypto" while `go list -m all` still lists it —
+which is the answer to give a policy that audits that list. Importing `passwd`
+extends the same effect to x/crypto's own requirements: `golang.org/x/net`,
+`x/term` and `x/text` join the graph without being linked.
+
 ## Usage
 
 ### Hash Interface
@@ -379,11 +410,14 @@ secure-kit/
 ├── random.go         # Secure random generation
 ├── mask.go           # Sensitive data masking
 ├── hmac.go           # HMAC computation and verification
-├── deps_test.go      # Guards that the root package stays standard-library only
-├── passwd/           # The only packages needing golang.org/x/crypto
+├── deps_test.go      # Guards that the root package and its test binary stay standard-library only
+├── assert_test.go    # The standard-library assertions the tests use in place of a test framework
+├── example_test.go   # Runnable examples; go test checks their output
+├── passwd/           # The only package needing golang.org/x/crypto
 │   ├── argon2.go     # Argon2id implementation
 │   ├── bcrypt.go     # bcrypt implementation
-│   └── *_test.go     # Tests for the password hashers
+│   ├── deps_test.go  # Guards that passwd reaches no further than x/crypto and x/sys
+│   └── *_test.go     # Tests and examples for the password hashers
 └── *_test.go         # Comprehensive tests
 ```
 
@@ -523,6 +557,9 @@ than you asked for.** That is the fix, not a regression.
 
 - **Go 1.27+** (`go.mod` declares `go 1.27.0`)
 - golang.org/x/crypto — only for the `passwd` subpackage (Argon2 and bcrypt); the root package needs nothing but the standard library
+- No test dependencies. The kit's own tests use the standard library too, because
+  `go mod tidy` in your module would otherwise record them — see
+  [What Importing Costs](#what-importing-costs)
 
 ## Test Coverage
 
