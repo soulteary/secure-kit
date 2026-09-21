@@ -26,6 +26,17 @@ func getRandReader() io.Reader {
 	return r
 }
 
+// RandReader returns the random source the package is currently using:
+// crypto/rand.Reader unless SetRandReader replaced it.
+//
+// Exported so that the passwd subpackage generates its salts from the same
+// source, and honours the same SetRandReader, as everything here -- a test that
+// pins the reader to get deterministic output would otherwise stop working the
+// moment the hasher moved out of this package.
+func RandReader() io.Reader {
+	return getRandReader()
+}
+
 // SetRandReader sets the random reader for testing only. Do not use in production.
 // Callers must call SetRandReader(nil) when the test ends to restore crypto/rand.Reader.
 func SetRandReader(r io.Reader) {

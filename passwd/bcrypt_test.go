@@ -1,4 +1,4 @@
-package secure
+package passwd
 
 import (
 	"testing"

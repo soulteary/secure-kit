@@ -1,6 +1,8 @@
-package secure
+package passwd
 
 import (
+	secure "github.com/soulteary/secure-kit/v2"
+
 	"encoding/base64"
 	"errors"
 	"strings"
@@ -329,8 +331,8 @@ func TestParseArgon2PHC(t *testing.T) {
 }
 
 func TestArgon2Hash_WithFailingReader(t *testing.T) {
-	defer SetRandReader(nil)
-	SetRandReader(&argon2ErrorReader{})
+	defer secure.SetRandReader(nil)
+	secure.SetRandReader(&argon2ErrorReader{})
 
 	h := NewArgon2Hasher()
 	_, err := h.Hash("password")
@@ -339,8 +341,8 @@ func TestArgon2Hash_WithFailingReader(t *testing.T) {
 }
 
 func TestArgon2HashWithParams_WithFailingReader(t *testing.T) {
-	defer SetRandReader(nil)
-	SetRandReader(&argon2ErrorReader{})
+	defer secure.SetRandReader(nil)
+	secure.SetRandReader(&argon2ErrorReader{})
 
 	h := NewArgon2Hasher()
 	_, err := h.HashWithParams("password")

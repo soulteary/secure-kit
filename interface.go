@@ -1,14 +1,22 @@
 // Package secure provides unified cryptographic hash functions, secure random
-// number generation, and sensitive data masking utilities for Go services.
+// number generation, constant-time comparison, HMAC verification, and sensitive
+// data masking utilities for Go services.
 //
-// This package supports multiple hash algorithms with a unified interface:
-//   - Argon2id: Recommended for password hashing and OTP codes (memory-hard)
-//   - bcrypt: Industry standard for password hashing
-//   - SHA-256/SHA-512: Fast hashing for checksums and message authentication
-//   - MD5: Legacy support only (NOT recommended for new implementations)
+// It depends on nothing outside the standard library. The password hashers are
+// the exception that proves the rule: Argon2id and bcrypt need
+// golang.org/x/crypto, so since v2 they live in the passwd subpackage and a
+// service importing this package for RandomHex or ConstantTimeEqual no longer
+// links, ships or audits a cryptographic library it never calls.
 //
-// All hash functions implement the Hasher interface, enabling consistent usage
-// across different algorithms and easy algorithm switching.
+// Hash algorithms, with a unified interface:
+//   - Argon2id: recommended for password hashing and OTP codes (memory-hard) -- passwd subpackage
+//   - bcrypt: industry standard for password hashing -- passwd subpackage
+//   - SHA-256/SHA-512: fast hashing for checksums and message authentication
+//   - MD5: legacy support only (NOT recommended for new implementations)
+//
+// All of them implement the Hasher interface, wherever they live, so switching
+// algorithms is a constructor change and the subpackage boundary costs a caller
+// nothing beyond one import.
 package secure
 
 // Hasher defines a unified interface for hash operations.

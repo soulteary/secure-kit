@@ -1,4 +1,4 @@
-package secure
+package passwd
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 // A value of 10 is a reasonable default; increase for higher security.
 const DefaultBcryptCost = bcrypt.DefaultCost // 10
 
-// BcryptHasher implements the Hasher interface using bcrypt algorithm.
+// BcryptHasher implements the secure.Hasher interface using bcrypt algorithm.
 // bcrypt is an industry-standard password hashing algorithm that automatically
 // handles salt generation and includes the salt in the hash output.
 type BcryptHasher struct {
@@ -87,7 +87,7 @@ func (h *BcryptHasher) Verify(hash, plaintext string) bool {
 	return err == nil
 }
 
-// Check implements the HashResolver interface.
+// Check implements the secure.HashResolver interface.
 // Compatible with existing Stargate implementations.
 func (h *BcryptHasher) Check(hash, plaintext string) bool {
 	return h.Verify(hash, plaintext)

@@ -1,13 +1,54 @@
 # secure-kit
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/soulteary/secure-kit.svg)](https://pkg.go.dev/github.com/soulteary/secure-kit)
+[![Go Reference](https://pkg.go.dev/badge/github.com/soulteary/secure-kit/v2.svg)](https://pkg.go.dev/github.com/soulteary/secure-kit/v2)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/soulteary/secure-kit/graph/badge.svg)](https://codecov.io/gh/soulteary/secure-kit)
 
 [English](README.md)
 
-统一的 Go 服务加密工具包。提供哈希函数（Argon2、bcrypt、SHA、MD5）、安全随机数生成、常量时间比较和敏感数据脱敏工具。
+统一的 Go 服务加密工具包。提供哈希函数（Argon2、bcrypt、SHA、MD5）、安全随机数生成、
+常量时间比较、HMAC 校验和敏感数据脱敏工具。根包不依赖标准库之外的任何东西——两个需要
+`golang.org/x/crypto` 的密码哈希器住在 `passwd` 子包里。
+
+> **v2.0.0 的破坏性变更——模块路径变了，密码哈希器也移进了子包。**
+>
+> **第一步——所有人，包括根本不做密码哈希的服务。** 模块路径现在是
+> `github.com/soulteary/secure-kit/v2`：
+>
+> ```bash
+> go get github.com/soulteary/secure-kit/v2
+> go mod edit -droprequire github.com/soulteary/secure-kit
+> ```
+>
+> 然后改掉源码里的 import 路径。主版本号必须跳，这是 Go 的导入兼容性规则决定的：
+> v2 删掉了导出符号。留转发用的空壳不是一个选项——空壳自己就要 import x/crypto，
+> 下面那点好处会原样吐回去。
+>
+> **第二步——只有用到密码哈希的人需要。** Argon2id 和 bcrypt 移到了
+> `github.com/soulteary/secure-kit/v2/passwd`，于是只用 `RandomHex`、
+> `ConstantTimeEqual` 或 HMAC helper 的程序导入根包时不再链接
+> `golang.org/x/crypto`。对一个只导入根包的程序来说，这意味着
+> **少链接 6 个包、二进制小 2.8%**（113 → 107 个包，1,884,320 → 1,831,072 字节），
+> **`go.mod` 里一条 `// indirect` 都不剩**——`golang.org/x/crypto` 和
+> `golang.org/x/sys` 一起消失——`go.sum` 少 4 行。
+>
+> 体积只是小头。真正的意义是：一个从不哈希密码的服务，不再分发、也不再需要为一个
+> 它压根不调用的密码学库负责。
+>
+> | 改之前 | 改之后 |
+> |---|---|
+> | `secure.NewArgon2Hasher(...)` | `passwd.NewArgon2Hasher(...)` |
+> | `secure.NewArgon2HasherStrict(...)` | `passwd.NewArgon2HasherStrict(...)` |
+> | `secure.NewBcryptHasher(...)` | `passwd.NewBcryptHasher(...)` |
+> | `secure.NewBcryptHasherStrict(...)` | `passwd.NewBcryptHasherStrict(...)` |
+> | `secure.WithArgon2*`、`secure.WithBcryptCost` | `passwd.WithArgon2*`、`passwd.WithBcryptCost` |
+> | `secure.Argon2Hasher`、`secure.BcryptHasher`、`secure.BcryptResolver` | `passwd.` 下同名 |
+>
+> 两者依然实现根包里的 `secure.Hasher` 和 `secure.HashResolver`，所以
+> `map[string]secure.HashResolver` 加一行 import 就能继续用。盐依然取自
+> `secure.RandReader()`，`secure.SetRandReader` 照旧管得住它。除此之外没有任何变化：
+> 其余符号、参数默认值、哈希格式都与 v1.6.0 一致——v1 写出的哈希在 v2 下照样验得过。
 
 ## 特性
 
@@ -15,12 +56,22 @@
 - **安全随机**：加密安全的随机字节、字符串、数字、令牌和 UUID
 - **时序攻击防护**：常量时间比较函数
 - **数据脱敏**：邮箱、手机号、信用卡、IP 地址、API 密钥脱敏，适用于日志记录
-- **零外部依赖**：仅使用 Go 标准库和 golang.org/x/crypto
+- **零外部依赖**：根包只用 Go 标准库——连 `golang.org/x/crypto` 都不用，那是 `passwd`
+  子包才需要的
+- **用多少付多少**：做密码哈希的二进制才会链接密码哈希库，不做就不链接
 
 ## 安装
 
 ```bash
-go get github.com/soulteary/secure-kit
+go get github.com/soulteary/secure-kit/v2
+```
+
+根包不依赖标准库之外的任何东西。Argon2id 与 bcrypt 需要 `golang.org/x/crypto`，
+所以它们住在自己的子包里，只有导入这个子包的程序才会链接那个依赖：
+
+```bash
+# Argon2id 与 bcrypt 密码哈希器——会链接 golang.org/x/crypto
+go get github.com/soulteary/secure-kit/v2/passwd
 ```
 
 ## 使用
@@ -40,16 +91,16 @@ type Hasher interface {
 ### Argon2（推荐用于密码）
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import "github.com/soulteary/secure-kit/v2/passwd"
 
 // 默认参数
-hasher := secure.NewArgon2Hasher()
+hasher := passwd.NewArgon2Hasher()
 
 // 自定义参数
-hasher = secure.NewArgon2Hasher(
-    secure.WithArgon2Time(2),
-    secure.WithArgon2Memory(64*1024),
-    secure.WithArgon2Threads(4),
+hasher = passwd.NewArgon2Hasher(
+    passwd.WithArgon2Time(2),
+    passwd.WithArgon2Memory(64*1024),
+    passwd.WithArgon2Threads(4),
 )
 
 hash, err := hasher.Hash("myPassword123!")
@@ -68,11 +119,13 @@ hash, err = hasher.HashWithParams("password")
 
 #### 选项校验
 
-超出范围的选项值会被**拒绝，而不是忽略**。`NewArgon2Hasher` 会 panic；
-`NewArgon2HasherStrict` 以错误返回：
+超出范围的选项值会被**拒绝，而不是忽略**。`passwd.NewArgon2Hasher` 会 panic；
+`passwd.NewArgon2HasherStrict` 以错误返回：
 
 ```go
-hasher, err := secure.NewArgon2HasherStrict(secure.WithArgon2Time(32))
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher, err := passwd.NewArgon2HasherStrict(passwd.WithArgon2Time(32))
 if err != nil {
     // "WithArgon2Time: 32 out of range (1..16)"
 }
@@ -80,11 +133,11 @@ if err != nil {
 
 | 选项 | 有效范围 |
 |------|----------|
-| `WithArgon2Time` | 1–16 |
-| `WithArgon2Memory` | 1–524288（KiB，即最多 512 MiB） |
-| `WithArgon2Threads` | 1–255 |
-| `WithArgon2KeyLen` | 1–1024 |
-| `WithArgon2SaltLen` | 1–1024 |
+| `passwd.WithArgon2Time` | 1–16 |
+| `passwd.WithArgon2Memory` | 1–524288（KiB，即最多 512 MiB） |
+| `passwd.WithArgon2Threads` | 1–255 |
+| `passwd.WithArgon2KeyLen` | 1–1024 |
+| `passwd.WithArgon2SaltLen` | 1–1024 |
 
 参数来自配置文件时请使用 `Strict` 构造函数，这样坏值会让启动失败，而不是让进程 panic。
 
@@ -102,20 +155,24 @@ hasher *当前*的配置重新推导：之后任何对 memory、time、threads �
 ### bcrypt
 
 ```go
-hasher := secure.NewBcryptHasher()
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher := passwd.NewBcryptHasher()
 
 // 或使用自定义代价因子
-hasher := secure.NewBcryptHasher(secure.WithBcryptCost(12))
+hasher := passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
 ```
 
-超出范围的 cost 同样会被拒绝——`NewBcryptHasher` panic，`NewBcryptHasherStrict`
+超出范围的 cost 同样会被拒绝——`passwd.NewBcryptHasher` panic，`passwd.NewBcryptHasherStrict`
 返回错误：
 
 ```go
-hasher, err := secure.NewBcryptHasherStrict(secure.WithBcryptCost(14))
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher, err := passwd.NewBcryptHasherStrict(passwd.WithBcryptCost(14))
 ```
 
 ### SHA-256/SHA-512
@@ -274,10 +331,15 @@ secure.TruncateString("很长的文本内容", 4) // "很长的文..."
 为了向后兼容现有代码：
 
 ```go
+import (
+    secure "github.com/soulteary/secure-kit/v2"
+    "github.com/soulteary/secure-kit/v2/passwd"
+)
+
 // 这些实现了 HashResolver 接口
 var resolver secure.HashResolver
 
-resolver = &secure.BcryptResolver{}
+resolver = &passwd.BcryptResolver{}
 resolver = &secure.SHA512Resolver{}
 resolver = &secure.MD5Resolver{}
 resolver = &secure.PlaintextResolver{}
@@ -293,14 +355,17 @@ if resolver.Check(storedHash, userPassword) {
 ```
 secure-kit/
 ├── interface.go      # Hasher 和 HashResolver 接口
-├── argon2.go         # Argon2id 实现
-├── bcrypt.go         # bcrypt 实现
 ├── sha.go            # SHA-256/SHA-512 实现
 ├── md5.go            # MD5 实现（遗留）
 ├── plaintext.go      # 明文比较（仅测试用）
 ├── compare.go        # 常量时间比较
 ├── random.go         # 安全随机数生成
 ├── mask.go           # 敏感数据脱敏
+├── hmac.go           # HMAC 计算与校验
+├── deps_test.go      # 守住「根包只用标准库」这条线
+├── passwd/           # 唯一需要 golang.org/x/crypto 的包
+│   ├── argon2.go     # Argon2id 实现
+│   └── bcrypt.go     # bcrypt 实现
 └── *_test.go         # 完整测试
 ```
 
@@ -329,13 +394,16 @@ secure-kit/
 ### Herald（OTP 服务）
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import (
+	secure "github.com/soulteary/secure-kit/v2"
+	"github.com/soulteary/secure-kit/v2/passwd"
+)
 
 // 生成 OTP 验证码
 code, _ := secure.RandomDigits(6)
 
 // 哈希存储
-hasher := secure.NewArgon2Hasher()
+hasher := passwd.NewArgon2Hasher()
 hash, _ := hasher.Hash(code)
 
 // 将哈希存储到 Redis，通过短信/邮件发送验证码
@@ -349,11 +417,14 @@ if hasher.Verify(storedHash, userInputCode) {
 ### Stargate（认证网关）
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import (
+	secure "github.com/soulteary/secure-kit/v2"
+	"github.com/soulteary/secure-kit/v2/passwd"
+)
 
 // 使用多种算法验证密码
 resolvers := map[string]secure.HashResolver{
-    "bcrypt":    &secure.BcryptResolver{},
+    "bcrypt":    &passwd.BcryptResolver{},
     "sha512":    &secure.SHA512Resolver{},
     "md5":       &secure.MD5Resolver{},
     "plaintext": &secure.PlaintextResolver{},
@@ -368,6 +439,27 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## 升级说明（v2.0.0）
+
+**模块路径变了，密码哈希器也移了位置。** 两步都写在文件开头的提示框里，简而言之：
+
+```diff
+-import secure "github.com/soulteary/secure-kit"
++import (
++    secure "github.com/soulteary/secure-kit/v2"
++    "github.com/soulteary/secure-kit/v2/passwd"
++)
+
+-hasher := secure.NewArgon2Hasher()
++hasher := passwd.NewArgon2Hasher()
+```
+
+从不哈希密码的服务只需要这个 diff 的第一行，代价换来的是 `go.mod` 里少掉
+`golang.org/x/crypto` 与 `golang.org/x/sys`。
+
+哈希格式、参数默认值、行为都没有变——v1.6.0 写出的哈希在 v2.0.0 下照样验得过。
+`secure.Hasher`、`secure.HashResolver`、`secure.SetRandReader` 以及其余东西都留在根包。
+
 ## 升级说明（v1.6.0）
 
 **有两个构造函数现在会 panic，而它们此前只是默默给了你一个比你要求的更弱的 hasher。**
@@ -376,8 +468,8 @@ func verifyPassword(algorithm, hash, password string) bool {
 - **超出范围的选项值会被拒绝，而不是丢弃。** `WithArgon2Time(32)` 此前让工作因子停在
   `1`，`WithBcryptCost(14)` 让 cost 停在 `10`——不报错、不 panic、也无从察觉。调用方相信
   存下来的哈希比实际更强，而对一个存在意义就是"强度"的参数来说，这是最糟糕的失效方式。
-  现在 `NewArgon2Hasher` 和 `NewBcryptHasher` 遇到非法值会 **panic**；
-  `NewArgon2HasherStrict` 和 `NewBcryptHasherStrict` 以错误返回。**如果你的选项值来自
+  现在 `passwd.NewArgon2Hasher` 和 `passwd.NewBcryptHasher` 遇到非法值会 **panic**；
+  `passwd.NewArgon2HasherStrict` 和 `passwd.NewBcryptHasherStrict` 以错误返回。**如果你的选项值来自
   配置，请改用 `Strict` 构造函数**，这样坏值会让启动失败而不是让进程挂掉——并且请检查
   你传过的值里有没有本来就超范围的，因为那些已存储的哈希比你预期的更弱。
 - **`VerifyAny` 在失败时不再返回期望签名。** 第二个返回值的文档是"匹配上的签名"，而在
@@ -399,7 +491,7 @@ func verifyPassword(algorithm, hash, password string) bool {
 ## 要求
 
 - **Go 1.27+**（`go.mod` 声明 `go 1.27.0`）
-- golang.org/x/crypto（用于 Argon2 和 bcrypt）
+- golang.org/x/crypto —— 只有 `passwd` 子包（Argon2 与 bcrypt）需要；根包只用标准库
 
 ## 测试覆盖率
 

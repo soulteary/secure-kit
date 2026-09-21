@@ -1,13 +1,62 @@
 # secure-kit
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/soulteary/secure-kit.svg)](https://pkg.go.dev/github.com/soulteary/secure-kit)
+[![Go Reference](https://pkg.go.dev/badge/github.com/soulteary/secure-kit/v2.svg)](https://pkg.go.dev/github.com/soulteary/secure-kit/v2)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/soulteary/secure-kit/graph/badge.svg)](https://codecov.io/gh/soulteary/secure-kit)
 
 [中文文档](README_CN.md)
 
-A unified cryptographic toolkit for Go services. This package provides hash functions (Argon2, bcrypt, SHA, MD5), secure random number generation, constant-time comparison, and sensitive data masking utilities.
+A unified cryptographic toolkit for Go services: hash functions (Argon2, bcrypt,
+SHA, MD5), secure random number generation, constant-time comparison, HMAC
+verification and sensitive data masking. The root package depends on nothing
+outside the standard library — the two password hashers that need
+`golang.org/x/crypto` live in the `passwd` subpackage.
+
+> **Breaking in v2.0.0 — new module path, and the password hashers moved to a
+> subpackage.**
+>
+> **Step 1 — everyone, including services that hash no passwords.** The module
+> path is now `github.com/soulteary/secure-kit/v2`:
+>
+> ```bash
+> go get github.com/soulteary/secure-kit/v2
+> go mod edit -droprequire github.com/soulteary/secure-kit
+> ```
+>
+> Then update the import path in your source. The major-version bump is required
+> by Go's import compatibility rule, because v2 removes exported symbols;
+> keeping them as shims was not an option, since a shim would import x/crypto
+> again and give back the whole benefit below.
+>
+> **Step 2 — password-hashing users only.** Argon2id and bcrypt moved to
+> `github.com/soulteary/secure-kit/v2/passwd`, so importing the root package no
+> longer links `golang.org/x/crypto` into binaries that only want `RandomHex`,
+> `ConstantTimeEqual` or the HMAC helpers. For a program that imports only the
+> root package that is **6 fewer linked packages and a 2.8% smaller binary**
+> (113 → 107 packages, 1,884,320 → 1,831,072 bytes), **no `// indirect`
+> requirement at all in your `go.mod`** — `golang.org/x/crypto` and
+> `golang.org/x/sys` both go — and four fewer lines in your `go.sum`.
+>
+> The binary saving is the small part. The point is that a service which never
+> hashes a password stops shipping, and stops answering for, a cryptographic
+> library it does not call.
+>
+> | Before | After |
+> |---|---|
+> | `secure.NewArgon2Hasher(...)` | `passwd.NewArgon2Hasher(...)` |
+> | `secure.NewArgon2HasherStrict(...)` | `passwd.NewArgon2HasherStrict(...)` |
+> | `secure.NewBcryptHasher(...)` | `passwd.NewBcryptHasher(...)` |
+> | `secure.NewBcryptHasherStrict(...)` | `passwd.NewBcryptHasherStrict(...)` |
+> | `secure.WithArgon2*`, `secure.WithBcryptCost` | `passwd.WithArgon2*`, `passwd.WithBcryptCost` |
+> | `secure.Argon2Hasher`, `secure.BcryptHasher`, `secure.BcryptResolver` | same names under `passwd.` |
+>
+> Both still implement `secure.Hasher` and `secure.HashResolver`, which stayed
+> in the root package, so a `map[string]secure.HashResolver` keeps working with
+> one import added. Salts still come from `secure.RandReader()`, so
+> `secure.SetRandReader` controls them as before. Nothing else changed: every
+> other symbol, every parameter default and every hash format is as it was in
+> v1.6.0 — hashes written by v1 verify under v2.
 
 ## Features
 
@@ -15,12 +64,24 @@ A unified cryptographic toolkit for Go services. This package provides hash func
 - **Secure Random**: Cryptographically secure random bytes, strings, digits, tokens, and UUIDs
 - **Timing Attack Prevention**: Constant-time comparison functions
 - **Data Masking**: Email, phone, credit card, IP address, API key masking for logging
-- **Zero External Dependencies**: Only uses Go standard library and golang.org/x/crypto
+- **Zero External Dependencies**: the root package is standard library only — not
+  even `golang.org/x/crypto`, which only the `passwd` subpackage needs
+- **Pay For What You Import**: a binary links a password-hashing library when it
+  hashes passwords, and not otherwise
 
 ## Installation
 
 ```bash
-go get github.com/soulteary/secure-kit
+go get github.com/soulteary/secure-kit/v2
+```
+
+The root package depends on nothing outside the standard library. Argon2id and
+bcrypt need `golang.org/x/crypto`, so they live in their own subpackage and only
+a program that imports it links that dependency:
+
+```bash
+# Argon2id and bcrypt password hashers — links golang.org/x/crypto
+go get github.com/soulteary/secure-kit/v2/passwd
 ```
 
 ## Usage
@@ -40,16 +101,16 @@ type Hasher interface {
 ### Argon2 (Recommended for Passwords)
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import "github.com/soulteary/secure-kit/v2/passwd"
 
 // Default parameters
-hasher := secure.NewArgon2Hasher()
+hasher := passwd.NewArgon2Hasher()
 
 // Custom parameters
-hasher = secure.NewArgon2Hasher(
-    secure.WithArgon2Time(2),
-    secure.WithArgon2Memory(64*1024),
-    secure.WithArgon2Threads(4),
+hasher = passwd.NewArgon2Hasher(
+    passwd.WithArgon2Time(2),
+    passwd.WithArgon2Memory(64*1024),
+    passwd.WithArgon2Threads(4),
 )
 
 hash, err := hasher.Hash("myPassword123!")
@@ -68,11 +129,13 @@ hash, err = hasher.HashWithParams("password")
 
 #### Option validation
 
-An out-of-range option value is **rejected, not ignored**. `NewArgon2Hasher`
-panics on one; `NewArgon2HasherStrict` reports it as an error:
+An out-of-range option value is **rejected, not ignored**. `passwd.NewArgon2Hasher`
+panics on one; `passwd.NewArgon2HasherStrict` reports it as an error:
 
 ```go
-hasher, err := secure.NewArgon2HasherStrict(secure.WithArgon2Time(32))
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher, err := passwd.NewArgon2HasherStrict(passwd.WithArgon2Time(32))
 if err != nil {
     // "WithArgon2Time: 32 out of range (1..16)"
 }
@@ -80,11 +143,11 @@ if err != nil {
 
 | Option | Valid range |
 |--------|-------------|
-| `WithArgon2Time` | 1–16 |
-| `WithArgon2Memory` | 1–524288 (KiB, i.e. up to 512 MiB) |
-| `WithArgon2Threads` | 1–255 |
-| `WithArgon2KeyLen` | 1–1024 |
-| `WithArgon2SaltLen` | 1–1024 |
+| `passwd.WithArgon2Time` | 1–16 |
+| `passwd.WithArgon2Memory` | 1–524288 (KiB, i.e. up to 512 MiB) |
+| `passwd.WithArgon2Threads` | 1–255 |
+| `passwd.WithArgon2KeyLen` | 1–1024 |
+| `passwd.WithArgon2SaltLen` | 1–1024 |
 
 Use the `Strict` constructor wherever the parameters come from configuration, so
 a bad value fails startup rather than the process.
@@ -105,20 +168,24 @@ forces the simple format.
 ### bcrypt
 
 ```go
-hasher := secure.NewBcryptHasher()
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher := passwd.NewBcryptHasher()
 
 // Or with custom cost
-hasher := secure.NewBcryptHasher(secure.WithBcryptCost(12))
+hasher := passwd.NewBcryptHasher(passwd.WithBcryptCost(12))
 
 hash, _ := hasher.Hash("password")
 valid := hasher.Verify(hash, "password")
 ```
 
-An out-of-range cost is rejected the same way — `NewBcryptHasher` panics,
-`NewBcryptHasherStrict` returns an error:
+An out-of-range cost is rejected the same way — `passwd.NewBcryptHasher` panics,
+`passwd.NewBcryptHasherStrict` returns an error:
 
 ```go
-hasher, err := secure.NewBcryptHasherStrict(secure.WithBcryptCost(14))
+import "github.com/soulteary/secure-kit/v2/passwd"
+
+hasher, err := passwd.NewBcryptHasherStrict(passwd.WithBcryptCost(14))
 ```
 
 ### SHA-256/SHA-512
@@ -280,10 +347,15 @@ secure.TruncateString("long text here", 8) // "long tex..."
 For backward compatibility with existing code:
 
 ```go
+import (
+    secure "github.com/soulteary/secure-kit/v2"
+    "github.com/soulteary/secure-kit/v2/passwd"
+)
+
 // These implement the HashResolver interface
 var resolver secure.HashResolver
 
-resolver = &secure.BcryptResolver{}
+resolver = &passwd.BcryptResolver{}
 resolver = &secure.SHA512Resolver{}
 resolver = &secure.MD5Resolver{}
 resolver = &secure.PlaintextResolver{}
@@ -299,14 +371,17 @@ if resolver.Check(storedHash, userPassword) {
 ```
 secure-kit/
 ├── interface.go      # Hasher and HashResolver interfaces
-├── argon2.go         # Argon2id implementation
-├── bcrypt.go         # bcrypt implementation
 ├── sha.go            # SHA-256/SHA-512 implementation
 ├── md5.go            # MD5 implementation (legacy)
 ├── plaintext.go      # Plaintext comparison (testing only)
 ├── compare.go        # Constant-time comparison
 ├── random.go         # Secure random generation
 ├── mask.go           # Sensitive data masking
+├── hmac.go           # HMAC computation and verification
+├── deps_test.go      # Guards that the root package stays standard-library only
+├── passwd/           # The only packages needing golang.org/x/crypto
+│   ├── argon2.go     # Argon2id implementation
+│   └── bcrypt.go     # bcrypt implementation
 └── *_test.go         # Comprehensive tests
 ```
 
@@ -335,13 +410,16 @@ All hash verification in this package uses constant-time comparison to avoid tim
 ### Herald (OTP Service)
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import (
+	secure "github.com/soulteary/secure-kit/v2"
+	"github.com/soulteary/secure-kit/v2/passwd"
+)
 
 // Generate OTP code
 code, _ := secure.RandomDigits(6)
 
 // Hash for storage
-hasher := secure.NewArgon2Hasher()
+hasher := passwd.NewArgon2Hasher()
 hash, _ := hasher.Hash(code)
 
 // Store hash in Redis, send code via SMS/email
@@ -355,11 +433,14 @@ if hasher.Verify(storedHash, userInputCode) {
 ### Stargate (Auth Gateway)
 
 ```go
-import secure "github.com/soulteary/secure-kit"
+import (
+	secure "github.com/soulteary/secure-kit/v2"
+	"github.com/soulteary/secure-kit/v2/passwd"
+)
 
 // Verify password with multiple algorithms
 resolvers := map[string]secure.HashResolver{
-    "bcrypt":    &secure.BcryptResolver{},
+    "bcrypt":    &passwd.BcryptResolver{},
     "sha512":    &secure.SHA512Resolver{},
     "md5":       &secure.MD5Resolver{},
     "plaintext": &secure.PlaintextResolver{},
@@ -374,6 +455,30 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## Upgrade Notes (v2.0.0)
+
+**The module path changed and the password hashers moved.** Both steps are in
+the banner at the top of this file; in short:
+
+```diff
+-import secure "github.com/soulteary/secure-kit"
++import (
++    secure "github.com/soulteary/secure-kit/v2"
++    "github.com/soulteary/secure-kit/v2/passwd"
++)
+
+-hasher := secure.NewArgon2Hasher()
++hasher := passwd.NewArgon2Hasher()
+```
+
+A service that never hashes a password needs only the first line of that diff,
+and drops `golang.org/x/crypto` and `golang.org/x/sys` from its `go.mod` in
+exchange.
+
+No hash format, parameter default or behaviour changed — hashes written by
+v1.6.0 verify under v2.0.0. `secure.Hasher`, `secure.HashResolver`,
+`secure.SetRandReader` and everything else stayed in the root package.
+
 ## Upgrade Notes (v1.6.0)
 
 **Two constructors can now panic where they previously returned a weaker hasher
@@ -383,9 +488,9 @@ than you asked for.** That is the fix, not a regression.
   `WithArgon2Time(32)` left the work factor at `1`, and `WithBcryptCost(14)` left
   the cost at `10` — no error, no panic, no way to tell. The caller believed the
   stored hashes were stronger than they were, which is the worst failure mode for
-  a parameter whose whole purpose is strength. `NewArgon2Hasher` and
-  `NewBcryptHasher` now **panic** on an invalid value; `NewArgon2HasherStrict` and
-  `NewBcryptHasherStrict` report it as an error. **If you pass option values from
+  a parameter whose whole purpose is strength. `passwd.NewArgon2Hasher` and
+  `passwd.NewBcryptHasher` now **panic** on an invalid value; `passwd.NewArgon2HasherStrict` and
+  `passwd.NewBcryptHasherStrict` report it as an error. **If you pass option values from
   configuration, switch to the `Strict` constructors** so a bad value fails
   startup instead of the process — and check whether any value you were passing
   was silently out of range, because your stored hashes are weaker than intended.
@@ -413,7 +518,7 @@ than you asked for.** That is the fix, not a regression.
 ## Requirements
 
 - **Go 1.27+** (`go.mod` declares `go 1.27.0`)
-- golang.org/x/crypto (for Argon2 and bcrypt)
+- golang.org/x/crypto — only for the `passwd` subpackage (Argon2 and bcrypt); the root package needs nothing but the standard library
 
 ## Test Coverage
 
