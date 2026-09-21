@@ -2,9 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSHA256Hasher_Hash(t *testing.T) {
@@ -35,8 +32,8 @@ func TestSHA256Hasher_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hash, err := h.Hash(tt.input)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, hash)
+			mustNoError(t, err)
+			wantEqual(t, tt.expected, hash)
 		})
 	}
 }
@@ -46,37 +43,37 @@ func TestSHA256Hasher_Verify(t *testing.T) {
 
 	t.Run("correct match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+		mustNoError(t, err)
+		wantTrue(t, h.Verify(hash, "password"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.False(t, h.Verify(hash, "wrong"))
+		mustNoError(t, err)
+		wantFalse(t, h.Verify(hash, "wrong"))
 	})
 
 	t.Run("case insensitive hash", func(t *testing.T) {
 		hash, err := h.Hash("test")
-		require.NoError(t, err)
+		mustNoError(t, err)
 		// Uppercase version should also match
-		assert.True(t, h.Verify("9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08", "test"))
-		assert.True(t, h.Verify(hash, "test"))
+		wantTrue(t, h.Verify("9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08", "test"))
+		wantTrue(t, h.Verify(hash, "test"))
 	})
 }
 
 func TestSHA256Hasher_Check(t *testing.T) {
 	h := NewSHA256Hasher()
 	hash, err := h.Hash("password")
-	require.NoError(t, err)
+	mustNoError(t, err)
 
-	assert.True(t, h.Check(hash, "password"))
-	assert.False(t, h.Check(hash, "wrong"))
+	wantTrue(t, h.Check(hash, "password"))
+	wantFalse(t, h.Check(hash, "wrong"))
 }
 
 func TestSHA256Hasher_Algorithm(t *testing.T) {
 	h := NewSHA256Hasher()
-	assert.Equal(t, "sha256", h.Algorithm())
+	wantEqual(t, "sha256", h.Algorithm())
 }
 
 func TestSHA512Hasher_Hash(t *testing.T) {
@@ -102,8 +99,8 @@ func TestSHA512Hasher_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hash, err := h.Hash(tt.input)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, hash)
+			mustNoError(t, err)
+			wantEqual(t, tt.expected, hash)
 		})
 	}
 }
@@ -113,36 +110,36 @@ func TestSHA512Hasher_Verify(t *testing.T) {
 
 	t.Run("correct match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+		mustNoError(t, err)
+		wantTrue(t, h.Verify(hash, "password"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.False(t, h.Verify(hash, "wrong"))
+		mustNoError(t, err)
+		wantFalse(t, h.Verify(hash, "wrong"))
 	})
 
 	t.Run("case insensitive hash", func(t *testing.T) {
 		expectedHash := "374d794a95cdcfd8b35993185fef9ba368f160d8daf432d08ba9f1ed1e5abe6cc69291e0fa2fe0006a52570ef18c19def4e617c33ce52ef0a6e5fbe318cb0387"
-		assert.True(t, h.Verify(expectedHash, "Hello, World!"))
+		wantTrue(t, h.Verify(expectedHash, "Hello, World!"))
 		// Uppercase version
-		assert.True(t, h.Verify("374D794A95CDCFD8B35993185FEF9BA368F160D8DAF432D08BA9F1ED1E5ABE6CC69291E0FA2FE0006A52570EF18C19DEF4E617C33CE52EF0A6E5FBE318CB0387", "Hello, World!"))
+		wantTrue(t, h.Verify("374D794A95CDCFD8B35993185FEF9BA368F160D8DAF432D08BA9F1ED1E5ABE6CC69291E0FA2FE0006A52570EF18C19DEF4E617C33CE52EF0A6E5FBE318CB0387", "Hello, World!"))
 	})
 }
 
 func TestSHA512Hasher_Check(t *testing.T) {
 	h := NewSHA512Hasher()
 	hash, err := h.Hash("password")
-	require.NoError(t, err)
+	mustNoError(t, err)
 
-	assert.True(t, h.Check(hash, "password"))
-	assert.False(t, h.Check(hash, "wrong"))
+	wantTrue(t, h.Check(hash, "password"))
+	wantFalse(t, h.Check(hash, "wrong"))
 }
 
 func TestSHA512Hasher_Algorithm(t *testing.T) {
 	h := NewSHA512Hasher()
-	assert.Equal(t, "sha512", h.Algorithm())
+	wantEqual(t, "sha512", h.Algorithm())
 }
 
 func TestSHA512Resolver(t *testing.T) {
@@ -150,12 +147,12 @@ func TestSHA512Resolver(t *testing.T) {
 
 	t.Run("correct match", func(t *testing.T) {
 		hash := "374d794a95cdcfd8b35993185fef9ba368f160d8daf432d08ba9f1ed1e5abe6cc69291e0fa2fe0006a52570ef18c19def4e617c33ce52ef0a6e5fbe318cb0387"
-		assert.True(t, resolver.Check(hash, "Hello, World!"))
+		wantTrue(t, resolver.Check(hash, "Hello, World!"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
 		hash := "374d794a95cdcfd8b35993185fef9ba368f160d8daf432d08ba9f1ed1e5abe6cc69291e0fa2fe0006a52570ef18c19def4e617c33ce52ef0a6e5fbe318cb0387"
-		assert.False(t, resolver.Check(hash, "Wrong!"))
+		wantFalse(t, resolver.Check(hash, "Wrong!"))
 	})
 }
 
@@ -172,7 +169,7 @@ func TestGetSHA512Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GetSHA512Hash(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -190,7 +187,7 @@ func TestGetSHA256Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GetSHA256Hash(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -199,7 +196,9 @@ func TestGetSHA512Hash_Consistency(t *testing.T) {
 	input := "test input"
 	hash1 := GetSHA512Hash(input)
 	hash2 := GetSHA512Hash(input)
-	assert.Equal(t, hash1, hash2, "SHA512 hash should be consistent")
+	if hash1 != hash2 {
+		t.Errorf("GetSHA512Hash(%q) returned %q and then %q", input, hash1, hash2)
+	}
 }
 
 func TestGetSHA512Hash_Length(t *testing.T) {
@@ -209,7 +208,7 @@ func TestGetSHA512Hash_Length(t *testing.T) {
 		t.Run(input, func(t *testing.T) {
 			result := GetSHA512Hash(input)
 			// SHA512 produces 128 hex characters (512 bits)
-			assert.Equal(t, 128, len(result), "SHA512 hash should be 128 characters long")
+			wantLenString(t, result, 128)
 		})
 	}
 }

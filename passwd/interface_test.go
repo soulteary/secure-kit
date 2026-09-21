@@ -3,9 +3,6 @@ package passwd
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	secure "github.com/soulteary/secure-kit/v2"
 )
 
@@ -29,12 +26,12 @@ func TestHashersSatisfyTheRootInterfaces(t *testing.T) {
 			password := "testPassword123!"
 
 			hash, err := h.Hash(password)
-			require.NoError(t, err)
-			assert.NotEmpty(t, hash)
+			mustNoError(t, err)
+			wantNotEmpty(t, hash)
 
-			assert.True(t, h.Verify(hash, password))
-			assert.False(t, h.Verify(hash, "wrongPassword"))
-			assert.NotEmpty(t, h.Algorithm())
+			wantTrue(t, h.Verify(hash, password))
+			wantFalse(t, h.Verify(hash, "wrongPassword"))
+			wantNotEmpty(t, h.Algorithm())
 		})
 	}
 }
@@ -56,10 +53,10 @@ func TestResolversSatisfyTheRootInterface(t *testing.T) {
 			password := "testPassword123!"
 
 			hash, err := tt.hasher.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
-			assert.True(t, tt.resolver.Check(hash, password))
-			assert.False(t, tt.resolver.Check(hash, "wrongPassword"))
+			wantTrue(t, tt.resolver.Check(hash, password))
+			wantFalse(t, tt.resolver.Check(hash, "wrongPassword"))
 		})
 	}
 }
@@ -76,16 +73,18 @@ func TestSaltedHashes(t *testing.T) {
 	for _, h := range saltedHashers {
 		t.Run(h.Algorithm(), func(t *testing.T) {
 			hash1, err := h.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
 			hash2, err := h.Hash(password)
-			require.NoError(t, err)
+			mustNoError(t, err)
 
-			assert.NotEqual(t, hash1, hash2, "%s should produce different hashes due to salt", h.Algorithm())
+			if hash1 == hash2 {
+				t.Errorf("%s hashed the same password to %q twice; the salt is not random", h.Algorithm(), hash1)
+			}
 
 			// But both should verify correctly
-			assert.True(t, h.Verify(hash1, password))
-			assert.True(t, h.Verify(hash2, password))
+			wantTrue(t, h.Verify(hash1, password))
+			wantTrue(t, h.Verify(hash2, password))
 		})
 	}
 }

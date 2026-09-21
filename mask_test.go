@@ -2,8 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMaskEmail(t *testing.T) {
@@ -62,7 +60,7 @@ func TestMaskEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskEmail(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -98,7 +96,7 @@ func TestMaskEmailPartial(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskEmailPartial(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -149,7 +147,7 @@ func TestMaskPhone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskPhone(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -180,7 +178,7 @@ func TestMaskPhoneSimple(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskPhoneSimple(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -233,7 +231,7 @@ func TestMaskString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskString(tt.input, tt.visibleChars)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -274,7 +272,7 @@ func TestMaskCreditCard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskCreditCard(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -335,7 +333,7 @@ func TestMaskIPAddress(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskIPAddress(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -366,7 +364,7 @@ func TestMaskAPIKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskAPIKey(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -402,7 +400,7 @@ func TestMaskName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MaskName(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -443,7 +441,7 @@ func TestTruncateString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := TruncateString(tt.input, tt.maxLen)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }

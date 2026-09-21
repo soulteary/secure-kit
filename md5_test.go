@@ -2,9 +2,6 @@ package secure
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMD5Hasher_Hash(t *testing.T) {
@@ -40,8 +37,8 @@ func TestMD5Hasher_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hash, err := h.Hash(tt.input)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, hash)
+			mustNoError(t, err)
+			wantEqual(t, tt.expected, hash)
 		})
 	}
 }
@@ -51,34 +48,34 @@ func TestMD5Hasher_Verify(t *testing.T) {
 
 	t.Run("correct match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.True(t, h.Verify(hash, "password"))
+		mustNoError(t, err)
+		wantTrue(t, h.Verify(hash, "password"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
 		hash, err := h.Hash("password")
-		require.NoError(t, err)
-		assert.False(t, h.Verify(hash, "wrong"))
+		mustNoError(t, err)
+		wantFalse(t, h.Verify(hash, "wrong"))
 	})
 
 	t.Run("case insensitive hash", func(t *testing.T) {
 		// MD5 of "Hello, World!" in uppercase
-		assert.True(t, h.Verify("65A8E27D8879283831B664BD8B7F0AD4", "Hello, World!"))
+		wantTrue(t, h.Verify("65A8E27D8879283831B664BD8B7F0AD4", "Hello, World!"))
 	})
 }
 
 func TestMD5Hasher_Check(t *testing.T) {
 	h := NewMD5Hasher()
 	hash, err := h.Hash("password")
-	require.NoError(t, err)
+	mustNoError(t, err)
 
-	assert.True(t, h.Check(hash, "password"))
-	assert.False(t, h.Check(hash, "wrong"))
+	wantTrue(t, h.Check(hash, "password"))
+	wantFalse(t, h.Check(hash, "wrong"))
 }
 
 func TestMD5Hasher_Algorithm(t *testing.T) {
 	h := NewMD5Hasher()
-	assert.Equal(t, "md5", h.Algorithm())
+	wantEqual(t, "md5", h.Algorithm())
 }
 
 func TestMD5Resolver(t *testing.T) {
@@ -86,17 +83,17 @@ func TestMD5Resolver(t *testing.T) {
 
 	t.Run("correct match", func(t *testing.T) {
 		hash := "65a8e27d8879283831b664bd8b7f0ad4"
-		assert.True(t, resolver.Check(hash, "Hello, World!"))
+		wantTrue(t, resolver.Check(hash, "Hello, World!"))
 	})
 
 	t.Run("incorrect match", func(t *testing.T) {
 		hash := "65a8e27d8879283831b664bd8b7f0ad4"
-		assert.False(t, resolver.Check(hash, "Wrong!"))
+		wantFalse(t, resolver.Check(hash, "Wrong!"))
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
 		hash := "65A8E27D8879283831B664BD8B7F0AD4"
-		assert.True(t, resolver.Check(hash, "Hello, World!"))
+		wantTrue(t, resolver.Check(hash, "Hello, World!"))
 	})
 }
 
@@ -115,7 +112,7 @@ func TestGetMD5Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GetMD5Hash(tt.input)
-			assert.Equal(t, tt.expected, result)
+			wantEqual(t, tt.expected, result)
 		})
 	}
 }
@@ -127,11 +124,15 @@ func TestGetMD5Hash_VariousInputs(t *testing.T) {
 		t.Run(input, func(t *testing.T) {
 			result := GetMD5Hash(input)
 			// MD5 produces 32 hex characters (128 bits)
-			assert.Equal(t, 32, len(result), "MD5 hash should be 32 characters long")
+			wantLenString(t, result, 32)
 			// Verify it's a valid hex string
 			for _, char := range result {
-				assert.True(t, (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f'),
-					"Hash should contain only hex characters")
+				isDigit := char >= '0' && char <= '9'
+				isLowerHexLetter := char >= 'a' && char <= 'f'
+				if !isDigit && !isLowerHexLetter {
+					t.Errorf("GetMD5Hash(%q) = %q, which is not all lower-case hex", input, result)
+					break
+				}
 			}
 		})
 	}
@@ -141,7 +142,9 @@ func TestGetMD5Hash_Consistency(t *testing.T) {
 	input := "test input"
 	hash1 := GetMD5Hash(input)
 	hash2 := GetMD5Hash(input)
-	assert.Equal(t, hash1, hash2, "MD5 hash should be consistent")
+	if hash1 != hash2 {
+		t.Errorf("GetMD5Hash(%q) returned %q and then %q", input, hash1, hash2)
+	}
 }
 
 func BenchmarkMD5Hash(b *testing.B) {
