@@ -555,7 +555,7 @@ than you asked for.** That is the fix, not a regression.
 
 ## Requirements
 
-- **Go 1.27+** (`go.mod` declares `go 1.27.0`)
+- **Go 1.27+** (`go.mod` declares `go 1.27.2`)
 - golang.org/x/crypto — only for the `passwd` subpackage (Argon2 and bcrypt); the root package needs nothing but the standard library
 - No test dependencies. The kit's own tests use the standard library too, because
   `go mod tidy` in your module would otherwise record them — see
