@@ -104,7 +104,7 @@ package graph and for the test binary separately.
 hashers into a subpackage keeps `golang.org/x/crypto` out of your binary, out
 of your `go.sum` and out of your `go.mod`. It does not keep it out of your
 *module graph*: minimal version selection still reads this kit's `go.mod`, so
-`golang.org/x/crypto v0.57.0` is a lower bound for your build whether or not
+`golang.org/x/crypto v0.58.0` is a lower bound for your build whether or not
 you import `passwd`, and if your module pins something older, adding this kit
 raises it. `go mod why -m golang.org/x/crypto` will answer "main module does
 not need module golang.org/x/crypto" while `go list -m all` still lists it —
@@ -552,7 +552,7 @@ than you asked for.** That is the fix, not a regression.
 
 ## Requirements
 
-- **Go 1.27+** (`go.mod` declares `go 1.27.2`)
+- **Go 1.27.2+** (`go.mod` declares `go 1.27.2`)
 - golang.org/x/crypto — only for the `passwd` subpackage (Argon2 and bcrypt); the root package needs nothing but the standard library
 - No test dependencies. The kit's own tests use the standard library too, because
   `go mod tidy` in your module would otherwise record them — see

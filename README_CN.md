@@ -91,7 +91,7 @@ module graph 里两个模块——而那些服务从来不会构建这些测试�
 **包没过来，版本下界还是会过来。** 把哈希器挪进子包，能让 `golang.org/x/crypto`
 不进你的二进制、不进你的 `go.sum`、不进你的 `go.mod`，但挡不住它进你的
 *module graph*：MVS 仍然会读这个 kit 的 `go.mod`，所以无论你有没有导入 `passwd`，
-`golang.org/x/crypto v0.57.0` 都是你这次构建的版本下界；你的模块要是钉了更旧的版本，
+`golang.org/x/crypto v0.58.0` 都是你这次构建的版本下界；你的模块要是钉了更旧的版本，
 加入这个 kit 会把它抬上来。`go mod why -m golang.org/x/crypto` 会回答
 "main module does not need module golang.org/x/crypto"，而 `go list -m all`
 里它仍然在——如果有合规流程在审 `go list -m all`，这就是要给出的解释。导入 `passwd`
@@ -520,7 +520,7 @@ func verifyPassword(algorithm, hash, password string) bool {
 
 ## 要求
 
-- **Go 1.27+**（`go.mod` 声明 `go 1.27.2`）
+- **Go 1.27.2+**（`go.mod` 声明 `go 1.27.2`）
 - golang.org/x/crypto —— 只有 `passwd` 子包（Argon2 与 bcrypt）需要；根包只用标准库
 - 没有测试依赖。kit 自己的测试也只用标准库，否则你的模块 `go mod tidy` 会把它们记下来——
   见[导入的代价](#导入的代价)
