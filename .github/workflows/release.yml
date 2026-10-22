@@ -31,6 +31,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
+      with:
+        ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+        persist-credentials: false
 
     - name: Set up Go environment
       uses: actions/setup-go@v7
@@ -88,13 +91,26 @@ jobs:
         done
         exit $status
 
+    # A manual repair validates immutable tag source, but may read corrected
+    # release documentation from the exact commit supplying this workflow.
+    - name: Read release documentation for manual verification
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/checkout@v7
+      with:
+        ref: ${{ github.workflow_sha }}
+        path: .release-metadata
+        sparse-checkout: CHANGELOG.md
+        sparse-checkout-cone-mode: false
+        persist-credentials: false
+
     - name: CHANGELOG must document the tag
       env:
         TAG: ${{ inputs.tag || github.ref_name }}
+        CHANGELOG_PATH: ${{ github.event_name == 'workflow_dispatch' && '.release-metadata/CHANGELOG.md' || 'CHANGELOG.md' }}
       run: |
         set -euo pipefail
         version="${TAG#v}"
-        if ! grep -qE "^## \[?${version}\]?" CHANGELOG.md; then
+        if ! grep -qF "## [$version] - " "$CHANGELOG_PATH"; then
           echo "::error file=CHANGELOG.md::no '## [$version]' section in CHANGELOG.md."
           echo "A release nobody wrote down is one nobody can upgrade to deliberately."
           exit 1
@@ -106,6 +122,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
+      with:
+        ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+        persist-credentials: false
 
     - name: Set up Go environment
       uses: actions/setup-go@v7
@@ -227,6 +246,13 @@ jobs:
           .github/test-results/
         include-hidden-files: true
         retention-days: 14
+    # Report actions set up their own Go; restore the project's toolchain before
+    # coverage, lint and security commands run.
+    - name: Restore project Go toolchain
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+
     - name: Reuse GTR coverage profile
       run: cp .github/test-results/coverage.out coverage.out
     - name: Display coverage summary
