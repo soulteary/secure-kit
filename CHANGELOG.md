@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Import Versioning](https://go.dev/ref/mod#major-version-suffixes).
 
+## [2.1.3] - 2026-11-01
+
+### Changed
+
+- Split Argon2 PHC parameter parsing and bounded validation into smaller helpers without changing the public API, accepted inputs, validation order or errors.
+- Resolve the reported cyclomatic-complexity finding; all six Go Report Card checks now score 100%.
+- Retain Go 1.27.3, golang.org/x/crypto v0.58.0 and golang.org/x/sys v0.49.0.
+
+
 ## [2.1.2] - 2026-10-22
 
 ### Changed
