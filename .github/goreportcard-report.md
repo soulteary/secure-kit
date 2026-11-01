@@ -1,29 +1,24 @@
 # Go Report Card
 
-**Grade: A+** (99.6%)
+**Grade: A+** (100.0%)
 
 | Metric | Value |
 | ------ | ----- |
 | Files | 29 |
-| Issues | 1 |
+| Issues | 0 |
 
 ## Checks
 
 | Check | Score |
 | ----- | ----- |
-| go_vet | 100% |
 | gofmt | 100% |
-| gocyclo | 96% |
+| go_vet | 100% |
+| gocyclo | 100% |
 | ineffassign | 100% |
 | license | 100% |
 | misspell | 100% |
 
-## Issues
-
-### gocyclo
-
-- `passwd/argon2.go`
-  - Line 300: cyclomatic complexity 27 for function parseArgon2PHC
+No issues found. Nice work!
 
 ---
 

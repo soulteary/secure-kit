@@ -311,59 +311,12 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 		return nil, nil, nil, errors.New("unsupported argon2 version")
 	}
 
-	// Parse parameters
-	paramParts := strings.Split(parts[3], ",")
-	if len(paramParts) != 3 {
-		return nil, nil, nil, errors.New("invalid argon2 parameters")
+	params, err := parseArgon2Parameters(parts[3])
+	if err != nil {
+		return nil, nil, nil, err
 	}
-
-	params := &argon2Params{}
-	var hasMemory, hasTime, hasThreads bool
-
-	for _, p := range paramParts {
-		kv := strings.Split(p, "=")
-		if len(kv) != 2 {
-			return nil, nil, nil, errors.New("invalid argon2 parameter format")
-		}
-
-		val, err := strconv.ParseUint(kv[1], 10, 32)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("invalid argon2 parameter value: %w", err)
-		}
-
-		switch kv[0] {
-		case "m":
-			params.memory = uint32(val)
-			hasMemory = true
-		case "t":
-			params.time = uint32(val)
-			hasTime = true
-		case "p":
-			params.threads = uint8(val)
-			hasThreads = true
-		default:
-			return nil, nil, nil, errors.New("unknown argon2 parameter")
-		}
-	}
-	if !hasMemory || !hasTime || !hasThreads {
-		return nil, nil, nil, errors.New("missing required argon2 parameters")
-	}
-	if params.memory == 0 || params.time == 0 || params.threads == 0 {
-		return nil, nil, nil, errors.New("argon2 parameters must be positive")
-	}
-	// x/crypto/argon2 requires memory >= 8 * threads.
-	if params.memory < 8*uint32(params.threads) {
-		return nil, nil, nil, errors.New("argon2 memory too small for parallelism")
-	}
-
-	if params.memory > maxArgon2MemoryKB {
-		return nil, nil, nil, fmt.Errorf("argon2 memory exceeds maximum: %d", maxArgon2MemoryKB)
-	}
-	if params.time > maxArgon2Time {
-		return nil, nil, nil, fmt.Errorf("argon2 time exceeds maximum: %d", maxArgon2Time)
-	}
-	if params.threads > maxArgon2Threads {
-		return nil, nil, nil, fmt.Errorf("argon2 threads exceeds maximum: %d", maxArgon2Threads)
+	if err := validateArgon2Parameters(params); err != nil {
+		return nil, nil, nil, err
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
@@ -383,4 +336,66 @@ func parseArgon2PHC(hash string) (*argon2Params, []byte, []byte, error) {
 	}
 
 	return params, salt, hashBytes, nil
+}
+
+func parseArgon2Parameters(raw string) (*argon2Params, error) {
+	// Parse parameters
+	paramParts := strings.Split(raw, ",")
+	if len(paramParts) != 3 {
+		return nil, errors.New("invalid argon2 parameters")
+	}
+
+	params := &argon2Params{}
+	var hasMemory, hasTime, hasThreads bool
+
+	for _, p := range paramParts {
+		kv := strings.Split(p, "=")
+		if len(kv) != 2 {
+			return nil, errors.New("invalid argon2 parameter format")
+		}
+
+		val, err := strconv.ParseUint(kv[1], 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argon2 parameter value: %w", err)
+		}
+
+		switch kv[0] {
+		case "m":
+			params.memory = uint32(val)
+			hasMemory = true
+		case "t":
+			params.time = uint32(val)
+			hasTime = true
+		case "p":
+			params.threads = uint8(val)
+			hasThreads = true
+		default:
+			return nil, errors.New("unknown argon2 parameter")
+		}
+	}
+	if !hasMemory || !hasTime || !hasThreads {
+		return nil, errors.New("missing required argon2 parameters")
+	}
+	return params, nil
+}
+
+func validateArgon2Parameters(params *argon2Params) error {
+	if params.memory == 0 || params.time == 0 || params.threads == 0 {
+		return errors.New("argon2 parameters must be positive")
+	}
+	// x/crypto/argon2 requires memory >= 8 * threads.
+	if params.memory < 8*uint32(params.threads) {
+		return errors.New("argon2 memory too small for parallelism")
+	}
+
+	if params.memory > maxArgon2MemoryKB {
+		return fmt.Errorf("argon2 memory exceeds maximum: %d", maxArgon2MemoryKB)
+	}
+	if params.time > maxArgon2Time {
+		return fmt.Errorf("argon2 time exceeds maximum: %d", maxArgon2Time)
+	}
+	if params.threads > maxArgon2Threads {
+		return fmt.Errorf("argon2 threads exceeds maximum: %d", maxArgon2Threads)
+	}
+	return nil
 }
