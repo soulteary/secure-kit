@@ -20,8 +20,9 @@ func constantTimeEqualString(a, b string) bool {
 }
 
 // constantTimeEqualHex compares two hex strings in constant time (case-insensitive).
-// Both are normalized to lowercase and padded to the same length so that timing
-// does not leak length or per-byte matches. Used by SHA and MD5 Verify/Check.
+// Both are normalized to lowercase and padded to the longer input length before
+// comparison. Normalization and allocation are not fixed-cost operations across
+// different inputs. Used by SHA and MD5 Verify/Check.
 func constantTimeEqualHex(a, b string) bool {
 	return constantTimeEqualString(strings.ToLower(a), strings.ToLower(b))
 }
@@ -29,14 +30,16 @@ func constantTimeEqualHex(a, b string) bool {
 // ConstantTimeEqual compares two strings in constant time to prevent timing attacks.
 // This should be used when comparing sensitive values like API keys, tokens, or hashes.
 //
-// Unlike simple == comparison, this function takes the same amount of time
-// regardless of how many characters match, preventing attackers from learning
-// information about the secret value through timing analysis.
+// For fixed input lengths, comparison work does not depend on the matching
+// prefix. Both strings are copied into buffers sized to the longer input;
+// allocation and copying costs therefore vary with input length.
 func ConstantTimeEqual(a, b string) bool {
 	return constantTimeEqualString(a, b)
 }
 
 // ConstantTimeEqualBytes compares two byte slices in constant time.
+// Comparison work does not depend on the matching prefix for fixed input lengths;
+// allocation and copying costs vary with the longer input length.
 func ConstantTimeEqualBytes(a, b []byte) bool {
 	maxLen := len(a)
 	if len(b) > maxLen {
