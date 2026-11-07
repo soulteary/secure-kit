@@ -17,7 +17,8 @@ import (
 type MD5Hasher struct{}
 
 // NewMD5Hasher creates a new MD5 hasher.
-// Consider using NewArgon2Hasher or NewBcryptHasher for new implementations.
+// For password hashing, use NewArgon2Hasher or NewBcryptHasher from
+// github.com/soulteary/secure-kit/v2/passwd.
 func NewMD5Hasher() *MD5Hasher {
 	return &MD5Hasher{}
 }

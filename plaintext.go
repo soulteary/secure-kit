@@ -14,7 +14,8 @@ import (
 type PlaintextHasher struct{}
 
 // NewPlaintextHasher creates a new plaintext "hasher".
-// Consider using NewArgon2Hasher or NewBcryptHasher for any real use case.
+// For password hashing, use NewArgon2Hasher or NewBcryptHasher from
+// github.com/soulteary/secure-kit/v2/passwd.
 func NewPlaintextHasher() *PlaintextHasher {
 	return &PlaintextHasher{}
 }
