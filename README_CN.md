@@ -469,6 +469,20 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## 升级说明（v2.1.4）
+
+```bash
+go get github.com/soulteary/secure-kit/v2@v2.1.4
+```
+
+脱敏与截断现在保留完整 Unicode 码点。现有 ASCII 输出和短输入脱敏规则不变，
+非 ASCII 输出按字符契约修正。`MaskString` 的可见长度过大时返回 `"***"`，
+不会再因整数溢出而 panic。码点不等同于完整字素簇；无效 UTF-8 输入仍不在该字符
+契约范围内。
+
+公开签名、密码学操作与依赖版本不变，无需迁移存储数据、密钥或命名空间。回滚会
+恢复此前的 Unicode 字符损坏和超大边界 panic，也不会撤销应用已经保存的脱敏值。
+
 ## 升级说明（v2.0.0）
 
 完整的版本历史见 [CHANGELOG.md](CHANGELOG.md)。

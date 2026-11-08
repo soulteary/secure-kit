@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Import Versioning](https://go.dev/ref/mod#major-version-suffixes).
 
+## [2.1.4] - 2026-11-08
+
+### Fixed
+
+- Use Unicode code-point boundaries in name, email, phone, card, API-key and
+  general string masking and truncation. Multibyte text no longer becomes an
+  unrelated first character or a partial UTF-8 sequence. Existing ASCII output
+  and short-input branches are unchanged.
+- Avoid integer overflow in `MaskString` bounds. Oversized nonnegative visible
+  lengths, including `math.MaxInt`, return `"***"` instead of panicking.
+
+### Documentation
+
+- Define masking lengths as Unicode code points, with explicit limits for
+  grapheme clusters and invalid UTF-8 input. Correct ASCII masking examples.
+- Qualify the allocation and copying costs of constant-time comparison helpers
+  and point password-hasher guidance at the `passwd` package. These comment
+  changes do not alter cryptographic operations.
+
+### Upgrade and rollback
+
+- Keep the `/v2` module path, public signatures, Go 1.27.3 and dependency pins.
+  No stored-data, credential, encryption-key or namespace conversion is needed.
+- Non-ASCII masking output intentionally changes to follow the documented
+  character contract. Rolling back restores the former corrupted output and
+  oversized-bound panic; it does not undo values already written by callers.
+
 ## [2.1.3] - 2026-11-01
 
 ### Changed
@@ -251,6 +278,10 @@ Initial release: Argon2id, bcrypt, SHA-256/512 and MD5 hashers behind a unified
 `Hasher` interface, secure random generation, constant-time comparison and
 sensitive-data masking.
 
+[2.1.4]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.4
+[2.1.3]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.3
+[2.1.2]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.2
+[2.1.1]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.1
 [2.1.0]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.0
 [2.0.0]: https://github.com/soulteary/secure-kit/releases/tag/v2.0.0
 [1.6.0]: https://github.com/soulteary/secure-kit/releases/tag/v1.6.0

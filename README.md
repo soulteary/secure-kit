@@ -490,6 +490,23 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## Upgrade Notes (v2.1.4)
+
+```bash
+go get github.com/soulteary/secure-kit/v2@v2.1.4
+```
+
+Masking and truncation now keep complete Unicode code points. Existing ASCII
+output and short-input masking rules are unchanged; non-ASCII output changes
+intentionally. `MaskString` with an oversized visible length returns `"***"`
+instead of overflowing and panicking. A code point is not a grapheme cluster;
+invalid UTF-8 input remains outside this character contract.
+
+Public signatures, cryptographic operations and dependency pins are unchanged.
+No stored-data, key or namespace migration is required. Rolling back restores
+the previous Unicode corruption and oversized-bound panic; it cannot undo
+masked values already persisted by an application.
+
 ## Upgrade Notes (v2.0.0)
 
 The full release history is in [CHANGELOG.md](CHANGELOG.md).
