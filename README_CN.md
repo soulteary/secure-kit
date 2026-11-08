@@ -319,6 +319,8 @@ secure.ConstantTimeEqualBytes([]byte(a), []byte(b))
 
 ### 数据脱敏
 
+脱敏和截断长度按 Unicode 码点（rune）计数，不按 UTF-8 字节或完整字素簇计数。有效 UTF-8 输入不会被切断码点；ASCII 输出和短输入脱敏规则保持不变。无效 UTF-8 输入不在该字符契约范围内。
+
 ```go
 // 邮箱脱敏
 secure.MaskEmail("user@example.com")        // "u***@example.com"

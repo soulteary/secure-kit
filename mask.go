@@ -5,7 +5,7 @@ import (
 )
 
 // MaskEmail masks an email address for logging/display purposes.
-// Shows only the first character of the local part and the full domain.
+// Shows only the first Unicode code point of the local part and the full domain.
 //
 // Examples:
 //   - "user@example.com" -> "u***@example.com"
@@ -32,14 +32,15 @@ func MaskEmail(email string) string {
 	}
 
 	// Show first character and mask the rest
-	if len(localPart) == 1 {
+	localRunes := []rune(localPart)
+	if len(localRunes) == 1 {
 		return localPart + "***@" + domain
 	}
 
-	return string(localPart[0]) + strings.Repeat("*", len(localPart)-1) + "@" + domain
+	return string(localRunes[:1]) + strings.Repeat("*", len(localRunes)-1) + "@" + domain
 }
 
-// MaskEmailPartial masks an email address, showing first 2 characters.
+// MaskEmailPartial masks an email address, showing its first 2 Unicode code points.
 // This provides slightly more context while still protecting privacy.
 //
 // Examples:
@@ -59,14 +60,16 @@ func MaskEmailPartial(email string) string {
 	localPart := email[:atIndex]
 	domain := email[atIndex:]
 
-	if len(localPart) <= 2 {
+	localRunes := []rune(localPart)
+	if len(localRunes) <= 2 {
 		return localPart + "***" + domain
 	}
-	return localPart[:2] + "***" + domain
+	return string(localRunes[:2]) + "***" + domain
 }
 
 // MaskPhone masks a phone number for logging/display purposes.
-// Shows only the first 3 and last 4 digits.
+// Shows only the first 3 and last 4 Unicode code points. Numeric ASCII formats
+// retain their existing output.
 //
 // Examples:
 //   - "13812345678" -> "138****5678"
@@ -78,7 +81,8 @@ func MaskPhone(phone string) string {
 	}
 
 	phone = strings.TrimSpace(phone)
-	length := len(phone)
+	runes := []rune(phone)
+	length := len(runes)
 
 	// If phone is too short, mask everything
 	if length < 7 {
@@ -87,26 +91,27 @@ func MaskPhone(phone string) string {
 
 	// Show first 3 and last 4 digits
 	if length <= 7 {
-		return phone[:3] + "****"
+		return string(runes[:3]) + "****"
 	}
 
-	return phone[:3] + strings.Repeat("*", length-7) + phone[length-4:]
+	return string(runes[:3]) + strings.Repeat("*", length-7) + string(runes[length-4:])
 }
 
 // MaskPhoneSimple masks a phone number with a simpler format.
-// Shows first 3 and last 4 characters with fixed *** in between.
+// Shows first 3 and last 4 Unicode code points with fixed *** in between.
 //
 // Examples:
 //   - "+1234567890" -> "+12***7890"
 //   - "13812345678" -> "138***5678"
 func MaskPhoneSimple(phone string) string {
-	if len(phone) <= 6 {
+	runes := []rune(phone)
+	if len(runes) <= 6 {
 		return "***"
 	}
-	return phone[:3] + "***" + phone[len(phone)-4:]
+	return string(runes[:3]) + "***" + string(runes[len(runes)-4:])
 }
 
-// MaskString masks a string, showing only the first and last few characters.
+// MaskString masks a string, showing visibleChars Unicode code points at each end.
 // visibleChars must be non-negative; if negative, returns "***" without panicking.
 //
 // Examples (with visibleChars=3):
@@ -116,13 +121,16 @@ func MaskString(s string, visibleChars int) string {
 	if visibleChars < 0 {
 		return "***"
 	}
-	if len(s) <= visibleChars*2 {
+	runes := []rune(s)
+	// Avoid multiplying caller-supplied bounds, which can overflow int.
+	if visibleChars >= len(runes) || visibleChars >= len(runes)-visibleChars {
 		return "***"
 	}
-	return s[:visibleChars] + "***" + s[len(s)-visibleChars:]
+	return string(runes[:visibleChars]) + "***" + string(runes[len(runes)-visibleChars:])
 }
 
-// MaskCreditCard masks a credit card number, showing only the last 4 digits.
+// MaskCreditCard masks a credit card number, showing only the last 4 Unicode
+// code points after removing ASCII spaces and dashes.
 //
 // Examples:
 //   - "4111111111111111" -> "************1111"
@@ -135,12 +143,13 @@ func MaskCreditCard(card string) string {
 	// Remove spaces and dashes for processing
 	cleaned := strings.ReplaceAll(strings.ReplaceAll(card, " ", ""), "-", "")
 
-	if len(cleaned) < 4 {
+	runes := []rune(cleaned)
+	if len(runes) < 4 {
 		return "****"
 	}
 
 	// Get last 4 digits
-	last4 := cleaned[len(cleaned)-4:]
+	last4 := string(runes[len(runes)-4:])
 
 	// If the original had dashes (typical format), preserve that
 	if strings.Contains(card, "-") {
@@ -148,7 +157,7 @@ func MaskCreditCard(card string) string {
 	}
 
 	// Otherwise, mask with asterisks
-	return strings.Repeat("*", len(cleaned)-4) + last4
+	return strings.Repeat("*", len(runes)-4) + last4
 }
 
 // MaskIPAddress masks an IP address for logging/display purposes.
@@ -179,20 +188,21 @@ func MaskIPAddress(ip string) string {
 	return "****"
 }
 
-// MaskAPIKey masks an API key, showing only the first and last few characters.
+// MaskAPIKey masks an API key, showing its first and last 4 Unicode code points.
 //
 // Examples:
 //   - "sk_live_abcdefghijklmnop" -> "sk_l***mnop"
 //   - "key_1234567890" -> "key_***7890"
 func MaskAPIKey(key string) string {
-	if len(key) <= 8 {
+	runes := []rune(key)
+	if len(runes) <= 8 {
 		return "***"
 	}
-	return key[:4] + "***" + key[len(key)-4:]
+	return string(runes[:4]) + "***" + string(runes[len(runes)-4:])
 }
 
 // MaskName masks a person's name for privacy.
-// Shows only the first character of each word.
+// Shows only the first Unicode code point of each whitespace-separated word.
 //
 // Examples:
 //   - "John Doe" -> "J*** D***"
@@ -207,21 +217,23 @@ func MaskName(name string) string {
 
 	for i, word := range words {
 		if len(word) > 0 {
-			masked[i] = string(word[0]) + "***"
+			masked[i] = string([]rune(word)[:1]) + "***"
 		}
 	}
 
 	return strings.Join(masked, " ")
 }
 
-// TruncateString truncates a string to the specified length.
+// TruncateString truncates a string to maxLen Unicode code points.
+// A code point is a rune, not a byte or a complete grapheme cluster.
 // Adds "..." suffix if truncated.
 func TruncateString(s string, maxLen int) string {
 	if maxLen < 0 {
 		return ""
 	}
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
