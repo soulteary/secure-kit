@@ -340,6 +340,8 @@ secure.ConstantTimeEqualBytes([]byte(a), []byte(b))
 
 ### Data Masking
 
+Masking and truncation lengths count Unicode code points (runes), not UTF-8 bytes or grapheme clusters. Valid UTF-8 inputs retain complete code points; ASCII output and short-input masking rules are unchanged. Invalid UTF-8 input is outside this character contract.
+
 ```go
 // Email masking
 secure.MaskEmail("user@example.com")        // "u***@example.com"
