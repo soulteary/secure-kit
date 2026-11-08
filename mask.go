@@ -9,7 +9,7 @@ import (
 //
 // Examples:
 //   - "user@example.com" -> "u***@example.com"
-//   - "test.user@example.com" -> "t***@example.com"
+//   - "test.user@example.com" -> "t********@example.com"
 //   - "a@example.com" -> "a***@example.com"
 func MaskEmail(email string) string {
 	if email == "" {
@@ -70,7 +70,7 @@ func MaskEmailPartial(email string) string {
 //
 // Examples:
 //   - "13812345678" -> "138****5678"
-//   - "+8613812345678" -> "+86****5678"
+//   - "+8613812345678" -> "+86*******5678"
 //   - "1234567" -> "123****"
 func MaskPhone(phone string) string {
 	if phone == "" {
