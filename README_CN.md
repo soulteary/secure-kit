@@ -536,7 +536,7 @@ go get github.com/soulteary/secure-kit/v2@v2.1.4
 
 ## 要求
 
-- **Go 1.27.3+**（`go.mod` 声明 `go 1.27.3`）
+- **Go 1.27.4+**（`go.mod` 声明 `go 1.27.4`）
 - golang.org/x/crypto —— 只有 `passwd` 子包（Argon2 与 bcrypt）需要；根包只用标准库
 - 没有测试依赖。kit 自己的测试也只用标准库，否则你的模块 `go mod tidy` 会把它们记下来——
   见[导入的代价](#导入的代价)
