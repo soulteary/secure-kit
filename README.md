@@ -490,6 +490,15 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## Upgrade Notes (v2.1.5)
+
+```bash
+go get github.com/soulteary/secure-kit/v2@v2.1.5
+```
+
+This release requires Go 1.27.4 and updates `golang.org/x/crypto` to v0.59.0.
+Public signatures and behavior are unchanged from v2.1.4.
+
 ## Upgrade Notes (v2.1.4)
 
 ```bash
