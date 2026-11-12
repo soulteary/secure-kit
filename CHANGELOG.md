@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Import Versioning](https://go.dev/ref/mod#major-version-suffixes).
 
+## [2.1.5] - 2026-11-13
+
+### Changed
+
+- Require Go 1.27.4, which carries security fixes to cgo, the go command, the
+  compiler, the linker and `net/http`.
+- Update `golang.org/x/crypto` from v0.58.0 to v0.59.0.
+
+The module path and the public API are unchanged.
+
 ## [2.1.4] - 2026-11-08
 
 ### Fixed
@@ -278,6 +288,7 @@ Initial release: Argon2id, bcrypt, SHA-256/512 and MD5 hashers behind a unified
 `Hasher` interface, secure random generation, constant-time comparison and
 sensitive-data masking.
 
+[2.1.5]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.5
 [2.1.4]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.4
 [2.1.3]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.3
 [2.1.2]: https://github.com/soulteary/secure-kit/releases/tag/v2.1.2

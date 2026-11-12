@@ -469,6 +469,15 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## 升级说明（v2.1.5）
+
+```bash
+go get github.com/soulteary/secure-kit/v2@v2.1.5
+```
+
+此版本要求 Go 1.27.4，并将 `golang.org/x/crypto` 更新到 v0.59.0。公开签名与行为
+相对 v2.1.4 不变。
+
 ## 升级说明（v2.1.4）
 
 ```bash
@@ -536,7 +545,7 @@ go get github.com/soulteary/secure-kit/v2@v2.1.4
 
 ## 要求
 
-- **Go 1.27.3+**（`go.mod` 声明 `go 1.27.3`）
+- **Go 1.27.4+**（`go.mod` 声明 `go 1.27.4`）
 - golang.org/x/crypto —— 只有 `passwd` 子包（Argon2 与 bcrypt）需要；根包只用标准库
 - 没有测试依赖。kit 自己的测试也只用标准库，否则你的模块 `go mod tidy` 会把它们记下来——
   见[导入的代价](#导入的代价)

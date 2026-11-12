@@ -490,6 +490,15 @@ func verifyPassword(algorithm, hash, password string) bool {
 }
 ```
 
+## Upgrade Notes (v2.1.5)
+
+```bash
+go get github.com/soulteary/secure-kit/v2@v2.1.5
+```
+
+This release requires Go 1.27.4 and updates `golang.org/x/crypto` to v0.59.0.
+Public signatures and behavior are unchanged from v2.1.4.
+
 ## Upgrade Notes (v2.1.4)
 
 ```bash
@@ -571,7 +580,7 @@ than you asked for.** That is the fix, not a regression.
 
 ## Requirements
 
-- **Go 1.27.3+** (`go.mod` declares `go 1.27.3`)
+- **Go 1.27.4+** (`go.mod` declares `go 1.27.4`)
 - golang.org/x/crypto — only for the `passwd` subpackage (Argon2 and bcrypt); the root package needs nothing but the standard library
 - No test dependencies. The kit's own tests use the standard library too, because
   `go mod tidy` in your module would otherwise record them — see
